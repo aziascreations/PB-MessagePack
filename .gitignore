@@ -1,0 +1,13 @@
+# IDEs
+.vs/
+.idea/
+
+# Build artifacts
+*.dll
+*.exe
+*.cfg
+
+#Trash
+Trash/
+*.7z
+*.zip
