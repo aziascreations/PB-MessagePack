@@ -7,7 +7,11 @@
 *.exe
 *.cfg
 
-#Trash
+# Binary blobs
+*.bin
+*.msgpack
+
+# Trash
 Trash/
 *.7z
 *.zip
