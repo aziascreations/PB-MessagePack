@@ -1,6 +1,8 @@
 
 
 EnableExplicit
+XIncludeFile "./Includes/MessagePack.pbi"
+
 
 Define *Buffer = MsgPackCreateMsgBuffer(16)
 MsgPackWriteI8(*Buffer, 42)
