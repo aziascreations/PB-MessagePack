@@ -25,7 +25,19 @@
 ; ------------------------------------------------------------------------------
 ;- Compiler directive
 
-;EnableExplicit
+CompilerIf #PB_Compiler_IsMainFile
+	EnableExplicit
+CompilerEndIf
+
+
+
+; ------------------------------------------------------------------------------
+;- Include Options
+
+; Disables null checking on non-debug builds
+CompilerIf Not Defined(MsgPack_DisableNullChecks, #PB_Constant)
+	#MsgPack_DisableNullChecks = #False
+CompilerEndIf
 
 
 
@@ -116,14 +128,33 @@ Enumeration _MsgPack_FormatCodes
 	#MsgPack_FormatCode_Invalid = $C1
 EndEnumeration
 
+Enumeration _MsgPack_ErrorCodes
+	#MsgPack_Error_Success = 0
+
+	; Common errors
+	#MsgPack_Error_NullPointerGiven = 1
+	#MsgPack_Error_BufferTooSmall = 2
+
+	; Shouldn't re-use it.
+	#MsgPack_Error_FailedToGrowBuffer = 3
+	#MsgPack_Error_AtOrPastTheEndOfBuffer = 4
+	#MsgPack_Error_ReadPastEndOfBuffer = 5
+	#MsgPack_Error_InvalidFormatCode = 6
+
+
+	#MsgPack_Error_CannotGrowBufferDueToConfig = 100
+EndEnumeration
+
 
 
 ; ------------------------------------------------------------------------------
 ;- Typedefs
 
-Macro MsgPack_DataType : b : EndMacro
+Macro MsgPack_DataType : a : EndMacro
 
-Macro MsgPack_FormatCode : b : EndMacro
+Macro MsgPack_FormatCode : a : EndMacro
+
+Macro MsgPack_ErrorCode : u : EndMacro
 
 
 
@@ -141,7 +172,7 @@ Structure MsgPackData
 	BufferGrowthIncrements.i
 	
 	; LastError code (Unused)
-	LastError.i
+	LastError.MsgPack_ErrorCode
 	
 	; Pointer to a data buffer.
 	; Can be freed by the caller or this module.
@@ -160,3 +191,60 @@ EndMacro
 Macro _MsgPackIsAtTheEnd(MsgPackWrapper)
 	(MsgPackWrapper\BufferOffset >= MsgPackWrapper\BufferSize)
 EndMacro
+
+
+
+; ------------------------------------------------------------------------------
+;- Procedures
+
+; Should be moved to allocators.
+; But it would fuck up the splitting of responsibility.
+; TODO: Add callback in the structure, maybe ?
+Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, MinimalGrowthSize.i = -1)
+	Protected GrowthSize.i
+	Protected *NewBuffer
+	
+	CompilerIf Not #MsgPack_DisableNullChecks
+		If Not *MsgPackData
+			DebuggerError("A #Null MsgPackData pointer was passed !")
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
+		EndIf
+	CompilerEndIf
+
+	; Often set by the callers, but programmers are likely to use it too,
+	;  so I'm leaving it here.
+	MsgPackData\LastError = #MsgPack_Error_Success
+	
+	If *MsgPackData\BufferGrowthIncrements <= 0
+		DebuggerError("Cannot grow a buffer with no growth increments !")
+
+		MsgPackData\LastError = #MsgPack_Error_CannotGrowBufferDueToConfig
+		ProcedureReturn #MsgPack_Error_CannotGrowBufferDueToConfig
+	EndIf
+	
+	; TODO: Improve logic later, i can't be bothered now
+	GrowthSize = *MsgPackData\BufferGrowthIncrements
+	If MinimalGrowthSize > GrowthSize
+		GrowthSize = ((MinimalGrowthSize + GrowthSize - 1) / GrowthSize) * GrowthSize
+	EndIf
+	
+	*NewBuffer = ReAllocateMemory(*MsgPackData\Buffer, *MsgPackData\BufferSize + GrowthSize)
+	If Not *NewBuffer
+		DebuggerError("Failed to reallocate memory for buffer !")
+
+		MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
+		ProcedureReturn #MsgPack_Error_FailedToGrowBuffer
+	EndIf
+	
+	*MsgPackData\Buffer = *NewBuffer
+	*MsgPackData\BufferSize + GrowthSize
+	
+	ProcedureReturn #MsgPack_Error_Success
+EndProcedure
+
+
+
+; ------------------------------------------------------------------------------
+;- Debugging
+
+; TODO: Something for OutputDebugStringW on win32
