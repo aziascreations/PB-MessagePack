@@ -19,6 +19,10 @@
 ; ------------------------------------------------------------------------------
 ;- Compiler directive
 
+CompilerIf #PB_Compiler_IsMainFile
+	EnableExplicit
+CompilerEndIf
+
 XIncludeFile "./_Commons.pbi"
 
 
@@ -40,15 +44,17 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 		EndIf
 	CompilerEndIf
 
-	MsgPackData\LastError = #MsgPack_Error_Success
+	*MsgPackData\LastError = #MsgPack_Error_Success
 	
 	If _MsgPackIsAtTheEnd(*MsgPackData)
 		DebuggerError("End of buffer reached, cannot check data format code !")
 
-		MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
+		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
 		ProcedureReturn #False
 	EndIf
 	
+	; We don't check if we're 1 byte off the end since the previous check implies it.
+
 	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_False
 	    *MsgPackData\BufferOffset + 1
 		ProcedureReturn #False
@@ -59,9 +65,9 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 		DebuggerError("The format code isn't the one for a boolean !  (" +
 		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
 		              " vs "+ RSet(Hex(#MsgPack_FormatCode_False), 2, "0") +
-                      "/"+ RSet(Hex(#MsgPack_FormatCode_Else), 2, "0") + ")")
+                      "/"+ RSet(Hex(#MsgPack_FormatCode_True), 2, "0") + ")")
 
-		MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 		ProcedureReturn #False
 	EndIf
 EndProcedure
@@ -79,7 +85,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteLiteral(*MsgPackData.MsgPackData, Liter
 		EndIf
 	CompilerEndIf
 
-	MsgPackData\LastError = #MsgPack_Error_Success
+	*MsgPackData\LastError = #MsgPack_Error_Success
 	
 	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1)
 		Protected GrowthErrorCode.MsgPack_ErrorCode

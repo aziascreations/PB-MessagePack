@@ -29,6 +29,10 @@ CompilerIf #PB_Compiler_IsMainFile
 	EnableExplicit
 CompilerEndIf
 
+; FIXME: Implement something to not load the include twice in other programs
+#_MsgPack_EndiannessIncludePath = "./PB-Endianness/Includes/Endianness.pbi"
+XIncludeFile #_MsgPack_EndiannessIncludePath
+
 
 
 ; ------------------------------------------------------------------------------
@@ -213,12 +217,12 @@ Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, MinimalGrowthS
 
 	; Often set by the callers, but programmers are likely to use it too,
 	;  so I'm leaving it here.
-	MsgPackData\LastError = #MsgPack_Error_Success
+	*MsgPackData\LastError = #MsgPack_Error_Success
 	
 	If *MsgPackData\BufferGrowthIncrements <= 0
 		DebuggerError("Cannot grow a buffer with no growth increments !")
 
-		MsgPackData\LastError = #MsgPack_Error_CannotGrowBufferDueToConfig
+		*MsgPackData\LastError = #MsgPack_Error_CannotGrowBufferDueToConfig
 		ProcedureReturn #MsgPack_Error_CannotGrowBufferDueToConfig
 	EndIf
 	
@@ -232,7 +236,7 @@ Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, MinimalGrowthS
 	If Not *NewBuffer
 		DebuggerError("Failed to reallocate memory for buffer !")
 
-		MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
+		*MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
 		ProcedureReturn #MsgPack_Error_FailedToGrowBuffer
 	EndIf
 	
