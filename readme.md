@@ -30,5 +30,10 @@ git submodule update --init --recursive
 ```
 
 
+## Special Thanks
+* [AndyMK](https://www.purebasic.fr/english/memberlist.php?mode=viewprofile&u=2587) / [agorangetek](https://github.com/agorangetek)
+  * PureBasic Visual Studio Code Extension ([GitHub repository](https://github.com/agorangetek/purebasic-vscode-extension))
+
+
 ## License
 All the code in this repo is released in the [Public Domain](LICENSE).

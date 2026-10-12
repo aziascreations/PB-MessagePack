@@ -145,8 +145,34 @@ Enumeration _MsgPack_ErrorCodes
 	#MsgPack_Error_ReadPastEndOfBuffer = 5
 	#MsgPack_Error_InvalidFormatCode = 6
 
+	; 5x - Binary
+	#MsgPack_Error_BinaryDataSizeIsNegative = 50
+	#MsgPack_Error_BinaryDataSizeIsTooBig   = 51
+
 
 	#MsgPack_Error_CannotGrowBufferDueToConfig = 100
+EndEnumeration
+
+EnumerationBinary _MsgPack_DataFlags
+	; Not implemented
+	#MsgPack_DataFlags_IsReadOnly     = %0000000000000001
+
+	; Not implemented
+	#MsgPack_DataFlags_CannotGrow     = %0000000000000010
+
+	; Not implemented
+	#MsgPack_DataFlags_NoBufferFree   = %0000000000000100
+
+	; Indicates a given `MsgPackData` is made to be iterated on.
+	; And it implies it represents a Map or Array.
+	#MsgPack_DataFlags_Iterator       = %0000000000001000
+	#MsgPack_DataFlags_CanProvideKeys = %0000000000010000
+	#MsgPack_DataFlags_CanProvideVals = %0000000000100000
+EndEnumeration
+
+EnumerationBinary _MsgPack_ExaminationOptions
+	; If set, we don't seek the end of the examined map/array.
+	#MsgPack_ExaminationOptions_NoEndSeeking = %0000000000000001
 EndEnumeration
 
 
@@ -159,6 +185,10 @@ Macro MsgPack_DataType : a : EndMacro
 Macro MsgPack_FormatCode : a : EndMacro
 
 Macro MsgPack_ErrorCode : u : EndMacro
+
+Macro MsgPack_DataFlag : u : EndMacro
+
+Macro MsgPack_ExaminationOption : u : EndMacro
 
 
 
@@ -174,9 +204,14 @@ Structure MsgPackData
 	
 	; Temp mechanism for buffer growth.
 	BufferGrowthIncrements.i
+
+	; IteratorSizeLeft, or snoething like this.
 	
-	; LastError code (Unused)
+	; LastError code
 	LastError.MsgPack_ErrorCode
+	
+	; TODO
+	DataFlags.MsgPack_DataFlag
 	
 	; Pointer to a data buffer.
 	; Can be freed by the caller or this module.
@@ -196,14 +231,29 @@ Macro _MsgPackIsAtTheEnd(MsgPackWrapper)
 	(MsgPackWrapper\BufferOffset >= MsgPackWrapper\BufferSize)
 EndMacro
 
+Macro _MsgPackHasFlag(MsgPackWrapper, DataFlag)
+	((MsgPackWrapper\DataFlags & DataFlag) <> $0000)
+EndMacro
+
 
 
 ; ------------------------------------------------------------------------------
 ;- Procedures
 
+Procedure.MsgPack_ErrorCode MsgPackLastError(*MsgPackData.MsgPackData)
+	If Not *MsgPackData
+		DebuggerError("A #Null MsgPackData pointer was passed !")
+		ProcedureReturn #MsgPack_Error_NullPointerGiven
+	EndIf
+
+	ProcedureReturn *MsgPackData\LastError
+EndProcedure
+
+
 ; Should be moved to allocators.
 ; But it would fuck up the splitting of responsibility.
 ; TODO: Add callback in the structure, maybe ?
+; FIXME: Use a .q for the size !!!!
 Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, MinimalGrowthSize.i = -1)
 	Protected GrowthSize.i
 	Protected *NewBuffer
@@ -251,4 +301,11 @@ EndProcedure
 ; ------------------------------------------------------------------------------
 ;- Debugging
 
-; TODO: Something for OutputDebugStringW on win32
+CompilerIf #True
+	Procedure _MsgPackDebug(Message.s)
+		Debug Message
+		OutputDebugString_(Message)
+	EndProcedure
+CompilerElse
+	Macro _MsgPackDebug(Message) :  : EndMacro
+CompilerEndIf

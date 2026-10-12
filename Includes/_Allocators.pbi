@@ -42,6 +42,7 @@ Procedure.i MsgPackCreate(InitialSize.i)
 		*ReturnedValue\BufferOffset = 0
 		*ReturnedValue\BufferSize = InitialSize
 		*ReturnedValue\BufferGrowthIncrements = InitialSize
+		*ReturnedValue\DataFlags = 0
 		
 		*ReturnedValue\Buffer = AllocateMemory(InitialSize)
 		If Not *ReturnedValue\Buffer
@@ -72,6 +73,7 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i)
 	*ReturnedValue\BufferOffset = 0
 	*ReturnedValue\BufferSize = BufferSize
 	*ReturnedValue\BufferGrowthIncrements = 0
+	*ReturnedValue\DataFlags = 0
 	*ReturnedValue\Buffer = *Buffer
 	
 	ProcedureReturn *ReturnedValue

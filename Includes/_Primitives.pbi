@@ -201,7 +201,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteUInt16(*MsgPackData.MsgPackData, Value.u
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt16)
-	PokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
 
@@ -243,7 +243,7 @@ Procedure.u MsgPackReadUInt16(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapU16(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
 
 	ProcedureReturn ReturnedValue
@@ -273,7 +273,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteInt16(*MsgPackData.MsgPackData, Value.w)
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int16)
-	PokeW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI16(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
 
@@ -315,7 +315,7 @@ Procedure.w MsgPackReadInt16(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapI16(PeekW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
 
 	ProcedureReturn ReturnedValue
@@ -346,7 +346,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteUInt32(*MsgPackData.MsgPackData, Value.l
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt32)
-	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
@@ -388,7 +388,7 @@ Procedure.l MsgPackReadUInt32(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
 	ProcedureReturn ReturnedValue
@@ -418,7 +418,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteInt32(*MsgPackData.MsgPackData, Value.l)
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int32)
-	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
@@ -460,7 +460,7 @@ Procedure.l MsgPackReadInt32(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
 	ProcedureReturn ReturnedValue
@@ -491,7 +491,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteUInt64(*MsgPackData.MsgPackData, Value.q
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt64)
-	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
@@ -533,7 +533,7 @@ Procedure.q MsgPackReadUInt64(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
 	ProcedureReturn ReturnedValue
@@ -563,7 +563,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteInt64(*MsgPackData.MsgPackData, Value.q)
 	EndIf
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int64)
-	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
@@ -605,7 +605,7 @@ Procedure.q MsgPackReadInt64(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ReturnedValue = PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
 	ProcedureReturn ReturnedValue
@@ -636,6 +636,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteFloat32(*MsgPackData.MsgPackData, Value.
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Float32)
 	PokeF(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	EndianSwapPtr32(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
@@ -678,6 +679,7 @@ Procedure.f MsgPackReadFloat32(*MsgPackData.MsgPackData)
 	EndIf
 
 	ReturnedValue = PeekF(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	EndianSwapPtr32(@ReturnedValue)
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
 
 	ProcedureReturn ReturnedValue
@@ -708,6 +710,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteFloat64(*MsgPackData.MsgPackData, Value.
 
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Float64)
 	PokeD(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+	EndianSwapPtr64(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
@@ -750,6 +753,7 @@ Procedure.d MsgPackReadFloat64(*MsgPackData.MsgPackData)
 	EndIf
 
 	ReturnedValue = PeekD(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+	EndianSwapPtr64(@ReturnedValue)
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
 
 	ProcedureReturn ReturnedValue
