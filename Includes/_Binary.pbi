@@ -85,11 +85,11 @@ Procedure.MsgPack_ErrorCode MsgPackWriteBin8(*MsgPackData.MsgPackData, *Buffer, 
 	*MsgPackData\LastError = #MsgPack_Error_Success
 
 	If BufferSize < 0
-        CompilerWarning("Received negative size !")
+        DebuggerWarning("Received negative size !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsNegative
 		ProcedureReturn *MsgPackData\LastError
 	ElseIf BufferSize > 255
-        CompilerWarning("Binary buffer is bigger than `(2^8)-1` bytes !")
+        DebuggerWarning("Binary buffer is bigger than `(2^8)-1` bytes !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
 		ProcedureReturn *MsgPackData\LastError
 	EndIf
@@ -128,11 +128,11 @@ Procedure.MsgPack_ErrorCode MsgPackWriteBin16(*MsgPackData.MsgPackData, *Buffer,
 	*MsgPackData\LastError = #MsgPack_Error_Success
 
 	If BufferSize < 0
-        CompilerWarning("Received negative size !")
+        DebuggerWarning("Received negative size !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsNegative
 		ProcedureReturn *MsgPackData\LastError
 	ElseIf BufferSize > 65535
-        CompilerWarning("Binary buffer is bigger than `(2^16)-1` bytes !")
+        DebuggerWarning("Binary buffer is bigger than `(2^16)-1` bytes !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
 		ProcedureReturn *MsgPackData\LastError
 	EndIf
@@ -160,7 +160,7 @@ Procedure.MsgPack_ErrorCode MsgPackWriteBin16(*MsgPackData.MsgPackData, *Buffer,
 EndProcedure
 
 
-Procedure.MsgPack_ErrorCode MsgPackWriteBin16(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)
+Procedure.MsgPack_ErrorCode MsgPackWriteBin32(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
@@ -171,11 +171,11 @@ Procedure.MsgPack_ErrorCode MsgPackWriteBin16(*MsgPackData.MsgPackData, *Buffer,
 	*MsgPackData\LastError = #MsgPack_Error_Success
 
 	If BufferSize < 0
-        CompilerWarning("Received negative size !")
+        DebuggerWarning("Received negative size !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsNegative
 		ProcedureReturn *MsgPackData\LastError
 	ElseIf BufferSize > 4294967295
-        CompilerWarning("Binary buffer is bigger than `(2^32)-1` bytes !")
+        DebuggerWarning("Binary buffer is bigger than `(2^32)-1` bytes !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
 		ProcedureReturn *MsgPackData\LastError
 	EndIf
@@ -205,17 +205,17 @@ EndProcedure
 
 Procedure.MsgPack_ErrorCode MsgPackWriteBinary(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)
     If BufferSize < 0
-        CompilerWarning("Received negative size !")
+        DebuggerWarning("Received negative size !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsNegative
 		ProcedureReturn *MsgPackData\LastError
     ElseIf BufferSize <= 255
-		ProcedureReturn MsgPackWriteBin8(MsgPackData, *Buffer, BufferSize)
+		ProcedureReturn MsgPackWriteBin8(*MsgPackData, *Buffer, BufferSize)
     ElseIf BufferSize <= 65535
-		ProcedureReturn MsgPackWriteBin16(MsgPackData, *Buffer, BufferSize)
+		ProcedureReturn MsgPackWriteBin16(*MsgPackData, *Buffer, BufferSize)
     ElseIf BufferSize <= 4294967295
-		ProcedureReturn MsgPackWriteBin32(MsgPackData, *Buffer, BufferSize)
+		ProcedureReturn MsgPackWriteBin32(*MsgPackData, *Buffer, BufferSize)
     Else
-        CompilerWarning("Binary buffer is bigger than `(2^32)-1` bytes !")
+        DebuggerWarning("Binary buffer is bigger than `(2^32)-1` bytes !")
 	    *MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
 		ProcedureReturn *MsgPackData\LastError
     EndIf

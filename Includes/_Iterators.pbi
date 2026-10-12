@@ -41,8 +41,16 @@ XIncludeFile "./_Allocators.pbi"
 
 ;-> Utils
 
-Procedure MsgPackGetFieldSize(*MsgPackData.MsgPackData)
-    
+Procedure MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData)
+	CompilerIf Not #MsgPack_DisableNullChecks
+		If Not *MsgPackData
+			DebuggerError("A #Null MsgPackData pointer was passed !")
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
+		EndIf
+	CompilerEndIf
+
+
+
 EndProcedure
 
 Procedure.q MsgPackGetFieldFullSize(*MsgPackData.MsgPackData)

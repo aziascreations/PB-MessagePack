@@ -1,4 +1,29 @@
+;{- Code Header
+; ==- Basic Info -================================
+;     Name: _Utils.pbi
+;  Version: 0.0.0
+;   Author: Herwin Bozet (NibblePoker)
+;
+; ==- Compatibility -=============================
+;  Tested compiler version:
+;    * //PureBasic 5.73 LTS (x86/x64)
+;    * //PureBasic 6.21 (x86/x64)
+;    * //PureBasic 6.21 C Backend (arm64)
+; 
+; ==- Links & License -===========================
+;  License: CC0 1.0 Universal (Public Domain)
+;  GitHub: https://github.com/aziascreations/PB-MessagePack
+;}
 
+
+; ------------------------------------------------------------------------------
+;- Compiler directive
+
+CompilerIf #PB_Compiler_IsMainFile
+	EnableExplicit
+CompilerEndIf
+
+XIncludeFile "./_Commons.pbi"
 
 
 
@@ -9,6 +34,8 @@
 ;-> Format Codes
 
 Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
+    Protected DataFormatCode.MsgPack_FormatCode
+    
 	If Not *MsgPackData
 		DebuggerError("A #Null MsgPackData pointer was passed !")
 		ProcedureReturn #MsgPack_FormatCode_Invalid
@@ -18,7 +45,9 @@ Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
 		DebuggerError("End of buffer reached, cannot check data format code !")
 		ProcedureReturn #MsgPack_FormatCode_Invalid
 	EndIf
-
+	
+	DataFormatCode = PeekA(*MsgPackData\Buffer)
+	
 	If DataFormatCode < $80
 		; 0x00 - 0x7F
 		ProcedureReturn #MsgPack_FormatCode_FixIntPositive
@@ -107,7 +136,8 @@ Procedure.MsgPack_DataType MsgPackFormatCodeToDataType(FormatCode.MsgPack_Format
         
         Case #MsgPack_FormatCode_Invalid:
         Default:
-            DebuggerError("FIXME: ADD MESSAGE HERE !!!")
+            ; FIXME: ADD MESSAGE HERE !!!
+            DebuggerWarning("")
             ProcedureReturn #MsgPack_DataTypes_Unknown
     EndSelect
 EndProcedure
