@@ -48,7 +48,8 @@ CompilerEndIf
 ; ------------------------------------------------------------------------------
 ;- Constants
 
-; ???
+; Used to represent any size that couldn't be calculated/derived/...
+#MsgPack_InvalidSize = -1
 
 
 

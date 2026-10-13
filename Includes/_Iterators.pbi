@@ -30,18 +30,51 @@ XIncludeFile "./_Allocators.pbi"
 
 
 ; ------------------------------------------------------------------------------
-;- Constants
-
-#MsgPack_InvalidSize = -1
-
-
-
-; ------------------------------------------------------------------------------
 ;- Procedures
 
 ;-> Utils
 
-Procedure MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData)
+;-> Dynamic size getters
+
+;-> > Private
+
+; /!\ Do not use outside of this file /!\ 
+; /!\ All macro/procedure here assume the caller has checked for null and that the format code is valid for this /!\
+
+Macro _MsgPackGetValueDynamicSize_Within(MsgPackData, Mask) : ((MsgPackData\*Buffer + *MsgPackData\BufferOffset) & Mask) : EndMacro
+
+Procedure.q _MsgPackGetValueDynamicSize_1After(*MsgPackData.MsgPackData)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 1)
+        DebuggerWarning("We have less than 1 byte to read the field's dynamic size !")
+        ProcedureReturn #MsgPack_InvalidSize
+    EndIf
+
+    ProcedureReturn PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+EndProcedure
+
+Procedure.q _MsgPackGetValueDynamicSize_2After(*MsgPackData.MsgPackData)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 2)
+        DebuggerWarning("We have less than 2 bytes to read the field's dynamic size !")
+        ProcedureReturn #MsgPack_InvalidSize
+    EndIf
+
+    ProcedureReturn EndianSwapU(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+EndProcedure
+
+; Do not use outside of this file !!!
+Procedure.q _MsgPackGetValueDynamicSize_4After(*MsgPackData.MsgPackData)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 4)
+        DebuggerWarning("We have less than 4 bytes to read the field's dynamic size !")
+        ProcedureReturn #MsgPack_InvalidSize
+    EndIf
+
+    ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+EndProcedure
+
+
+;-> > Public
+
+Procedure.q MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode)
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
@@ -49,15 +82,51 @@ Procedure MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData)
 		EndIf
 	CompilerEndIf
 
+    Select ExaminedDataType
+        Case #MsgPack_FormatCode_FixIntPositive:
+            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %01111111)
+            
+        Case #MsgPack_FormatCode_FixStr:
+        Case #MsgPack_FormatCode_FixIntNegative:
+            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00011111)
+            
+        Case #MsgPack_FormatCode_FixArray:
+        Case #MsgPack_FormatCode_FixMap:
+            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00001111)
+            
+        Case #MsgPack_FormatCode_Str8:
+        Case #MsgPack_FormatCode_Bin8:
+        Case #MsgPack_FormatCode_Ext8:
+            ProcedureReturn _MsgPackGetValueDynamicSize_1After(*MsgPackData)
+            
+        Case #MsgPack_FormatCode_Str16:
+        Case #MsgPack_FormatCode_Bin16:
+        Case #MsgPack_FormatCode_Array16:
+        Case #MsgPack_FormatCode_Map16:
+        Case #MsgPack_FormatCode_Ext16:
+            ProcedureReturn _MsgPackGetValueDynamicSize_2After(*MsgPackData)
+            
+        Case #MsgPack_FormatCode_Str32:
+        Case #MsgPack_FormatCode_Bin32:
+        Case #MsgPack_FormatCode_Array32:
+        Case #MsgPack_FormatCode_Map32:
+        Case #MsgPack_FormatCode_Ext32:
+            ProcedureReturn _MsgPackGetValueDynamicSize_4After(*MsgPackData)
 
+        Default:
+            ProcedureReturn #MsgPack_InvalidSize
+    EndSelect
 
 EndProcedure
+
+
+;-> Size getters
 
 Procedure.q MsgPackGetFieldFullSize(*MsgPackData.MsgPackData)
     Protected HasVariableSize = #False
     Protected FullFieldSize.q = 0
 
-    Protected ExaminedDataType.MsgPack_FormatCode
+    Protected ExaminedFormatCode.MsgPack_FormatCode
 	
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
@@ -91,7 +160,7 @@ EndProcedure
 ;-> General
 
 ; TODO: Use the internal flag to detect if we should check the remaining count.
-; MsgPackNext
+; MsgPackNext(MaximalDepth)
 
 
 ;-> Dictionary
