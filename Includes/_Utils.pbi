@@ -41,7 +41,7 @@ Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
 		ProcedureReturn #MsgPack_FormatCode_Invalid
 	EndIf
 	
-	If Not _MsgPackIsAtTheEnd(*MsgPackData)
+	If _MsgPackIsAtTheEnd(*MsgPackData)
 		DebuggerError("End of buffer reached, cannot check data format code !")
 		ProcedureReturn #MsgPack_FormatCode_Invalid
 	EndIf

@@ -41,7 +41,7 @@ XIncludeFile "./_Allocators.pbi"
 ; /!\ Do not use outside of this file /!\ 
 ; /!\ All macro/procedure here assume the caller has checked for null and that the format code is valid for this /!\
 
-Macro _MsgPackGetValueDynamicSize_Within(MsgPackData, Mask) : ((MsgPackData\*Buffer + *MsgPackData\BufferOffset) & Mask) : EndMacro
+Macro _MsgPackGetValueDynamicSize_Within(MsgPackData, Mask) : (PeekA(MsgPackData\Buffer + MsgPackData\BufferOffset) & Mask) : EndMacro
 
 Procedure.q _MsgPackGetValueDynamicSize_1After(*MsgPackData.MsgPackData)
     If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 1)
@@ -71,87 +71,156 @@ Procedure.q _MsgPackGetValueDynamicSize_4After(*MsgPackData.MsgPackData)
     ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 EndProcedure
 
-
-;-> > Public
-
-Procedure.q MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
-
+Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode, *VariableSizeQ = #Null, *ValueStartOffsetB = #Null)
+    CompilerIf Not #MsgPack_DisableNullChecks
+        If Not *MsgPackData
+            DebuggerError("A #Null MsgPackData pointer was passed !")
+            ProcedureReturn #False
+        EndIf
+    CompilerEndIf
+    
+    If *MsgPackData = #Null Or (*VariableSizeQ = #Null And *ValueStartOffsetB = #Null)
+        ProcedureReturn #False
+    EndIf
+    
     Select ExaminedDataType
         Case #MsgPack_FormatCode_FixIntPositive:
-            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %01111111)
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %01111111))
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 1)
+            EndIf
+            ProcedureReturn #True
             
         Case #MsgPack_FormatCode_FixStr:
         Case #MsgPack_FormatCode_FixIntNegative:
-            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00011111)
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00011111))
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 1)
+            EndIf
+            ProcedureReturn #True
             
         Case #MsgPack_FormatCode_FixArray:
         Case #MsgPack_FormatCode_FixMap:
-            ProcedureReturn _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00001111)
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00001111))
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 1)
+            EndIf
+            ProcedureReturn #True
             
+        Case #MsgPack_FormatCode_Ext8:
+            ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
         Case #MsgPack_FormatCode_Str8:
         Case #MsgPack_FormatCode_Bin8:
-        Case #MsgPack_FormatCode_Ext8:
-            ProcedureReturn _MsgPackGetValueDynamicSize_1After(*MsgPackData)
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_1After(*MsgPackData))
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 2)
+            EndIf
+            ProcedureReturn #True
             
+        Case #MsgPack_FormatCode_Ext16:
+            ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
         Case #MsgPack_FormatCode_Str16:
         Case #MsgPack_FormatCode_Bin16:
         Case #MsgPack_FormatCode_Array16:
         Case #MsgPack_FormatCode_Map16:
-        Case #MsgPack_FormatCode_Ext16:
-            ProcedureReturn _MsgPackGetValueDynamicSize_2After(*MsgPackData)
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_2After(*MsgPackData))    
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 3)
+            EndIf
+            ProcedureReturn #True
             
+        Case #MsgPack_FormatCode_Ext32:
+            ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
         Case #MsgPack_FormatCode_Str32:
         Case #MsgPack_FormatCode_Bin32:
         Case #MsgPack_FormatCode_Array32:
         Case #MsgPack_FormatCode_Map32:
-        Case #MsgPack_FormatCode_Ext32:
-            ProcedureReturn _MsgPackGetValueDynamicSize_4After(*MsgPackData)
-
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_4After(*MsgPackData))    
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, 5)
+            EndIf
+            ProcedureReturn #True
+            
         Default:
-            ProcedureReturn #MsgPack_InvalidSize
+            If *VariableSizeQ <> #Null
+                PokeQ(*VariableSizeQ, #MsgPack_InvalidSize)    
+            EndIf
+            If *ValueStartOffsetB <> #Null
+                PokeB(*ValueStartOffsetB, #MsgPack_InvalidSize)
+            EndIf
+            ProcedureReturn #False
     EndSelect
+EndProcedure
 
+
+;-> > Public
+
+; NOTE: Not sure if making this public is useful :/
+Procedure.q MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode)
+    Protected ReturnedValue.q = 0
+    _MsgPackGetValueMetaInfo(*MsgPackData, ExaminedDataType, @ReturnedValue, #Null)
+    ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> Size getters
 
 Procedure.q MsgPackGetFieldFullSize(*MsgPackData.MsgPackData)
+    Protected IsIterable = #False
     Protected HasVariableSize = #False
+    
+    Protected FieldVariableSize.q = #MsgPack_InvalidSize
+    Protected FieldValueOffset.b = #MsgPack_InvalidSize
     Protected FullFieldSize.q = 0
 
     Protected ExaminedFormatCode.MsgPack_FormatCode
-	
+    
+    ; Safety checks
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
 			ProcedureReturn #MsgPack_Error_NullPointerGiven
 		EndIf
 	CompilerEndIf
-
+	
+	; Preparing stuff
     *MsgPackData\LastError = #MsgPack_Error_Success
-
     ExaminedFormatCode = MsgPackGetFormatCode(*MsgPackData)
-
-    ; Step 1
-    ;Select ExaminedFormatCode
-    ; FIXME: Not Implemented !!!
-
-    ; Step 2
-    If HasVariableSize
-        Protected VariableFieldSize = MsgPackGetFieldSize()
-        If VariableFieldSize = #MsgPack_InvalidSize
-            ProcedureReturn #MsgPack_InvalidSize
-        EndIf
-        FullFieldSize = FullFieldSize + VariableFieldSize
+    
+    ; Determining iterability for later
+    If (ExaminedFormatCode >= #MsgPack_FormatCode_Array16 And ExaminedFormatCode <= #MsgPack_FormatCode_Map32) Or
+       (ExaminedFormatCode = #MsgPack_FormatCode_FixArray Or ExaminedFormatCode = #MsgPack_FormatCode_FixMap)
+        IsIterable = #True
     EndIf
-
+    
+    ; We ignore the returned boolean since we maw not care about this result later down the line.
+    _MsgPackGetValueMetaInfo(*MsgPackData, ExaminedFormatCode, @FieldVariableSize, @FieldValueOffset)
+    
+    If IsIterable
+        ; Iterables, we'll have to go recursive
+        ; They're also all using variable sizes.
+        DebuggerError("Getting an iterable field's full size isn't implemented yet !")
+        
+    ElseIf FieldVariableSize = -1
+        ; Simple fixed-size field, we'll have to determine the size 
+        
+    Else
+        ; Variable size field
+        
+    EndIf
+    
     ; Step 3
     ProcedureReturn FullFieldSize
 EndProcedure
@@ -193,7 +262,7 @@ Procedure.i MsgPackExamineArray(*MsgPackData.MsgPackData, ExaminationOptions.Msg
 
     If ExaminedDataType <> #MsgPack_DataTypes_Array
         DebuggerWarning("Attempted to iterate on format code 0x" +
-                        RSet(Hex(ExaminedFormatCode, #PB_Ascii), 2, 0) +
+                        RSet(Hex(ExaminedFormatCode, #PB_Ascii), 2, "0") +
                         " as if it was an array !")
         *MsgPackData\LastError = -1
         ProcedureReturn #Null
@@ -204,17 +273,17 @@ Procedure.i MsgPackExamineArray(*MsgPackData.MsgPackData, ExaminationOptions.Msg
             ExaminedArraySize = ExaminedFormatCode & $000000000000000F
 
         Case #MsgPack_FormatCode_Array16:
-            If Not _MsgPackHasSpaceLeft(*MsgPackData, BufferSize + 3)
+            If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 3)
                 DebuggerWarning("We have less than 3 bytes to read the Array16's size !")
                 ; FIXME: Use the proper one
                 *MsgPackData\LastError = -1
                 ProcedureReturn #Null
             EndIf
 
-            ExaminedArraySize = PeekU(*MsgPackData\*Buffer + 1)
+            ExaminedArraySize = PeekU(*MsgPackData\Buffer + 1)
 
         Case #MsgPack_FormatCode_Array32:
-            If Not _MsgPackHasSpaceLeft(*MsgPackData, BufferSize + 5)
+            If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 5)
                 DebuggerWarning("We have less than 5 bytes to read the Array32's size !")
                 ; FIXME: Use the proper one
                 *MsgPackData\LastError = -1
@@ -222,7 +291,7 @@ Procedure.i MsgPackExamineArray(*MsgPackData.MsgPackData, ExaminationOptions.Msg
             EndIf
 
             ; FIXME: WILL CAUSE ISSUES WITH UNSIGNED SHIT !!!
-            ExaminedArraySize = PeekI(*MsgPackData\*Buffer + 1)
+            ExaminedArraySize = PeekI(*MsgPackData\Buffer + 1)
 
         Default:
             ; ???
