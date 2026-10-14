@@ -34,8 +34,8 @@ XIncludeFile "./_Commons.pbi"
 ;-> Format Codes
 
 Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
-    Protected DataFormatCode.MsgPack_FormatCode
-    
+	Protected DataFormatCode.MsgPack_FormatCode
+	
 	If Not *MsgPackData
 		DebuggerError("A #Null MsgPackData pointer was passed !")
 		ProcedureReturn #MsgPack_FormatCode_Invalid
@@ -62,9 +62,9 @@ Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
 		ProcedureReturn #MsgPack_FormatCode_FixStr
 	ElseIf DataFormatCode < $E0
 		; 0xC0 - 0xDF -> Various
-        
-        ; All fields types are mapped to codes present in the enumeration.
-        ProcedureReturn DataFormatCode
+		
+		; All fields types are mapped to codes present in the enumeration.
+		ProcedureReturn DataFormatCode
 	Else
 		; 0xE0 - 0xFF
 		ProcedureReturn #MsgPack_FormatCode_FixIntNegative
@@ -75,69 +75,65 @@ EndProcedure
 ;-> Format Types
 
 Procedure.MsgPack_DataType MsgPackFormatCodeToDataType(FormatCode.MsgPack_FormatCode)
-    Select FormatCode
-        Case #MsgPack_FormatCode_FixIntPositive:
-        Case #MsgPack_FormatCode_UInt8:
-        Case #MsgPack_FormatCode_UInt16:
-        Case #MsgPack_FormatCode_UInt32:
-        Case #MsgPack_FormatCode_UInt64:
-        Case #MsgPack_FormatCode_Int8:
-        Case #MsgPack_FormatCode_Int16:
-        Case #MsgPack_FormatCode_Int32:
-        Case #MsgPack_FormatCode_Int64:
-        Case #MsgPack_FormatCode_FixIntNegative:
-            ProcedureReturn #MsgPack_DataTypes_Integer
-            
-        Case #MsgPack_FormatCode_Float32:
-        Case #MsgPack_FormatCode_Float64:
-            ProcedureReturn #MsgPack_DataTypes_Float
-            
-        Case #MsgPack_FormatCode_FixStr:
-        Case #MsgPack_FormatCode_Str8:
-        Case #MsgPack_FormatCode_Str16:
-        Case #MsgPack_FormatCode_Str32:
-            ProcedureReturn #MsgPack_DataTypes_String
-            
-        Case #MsgPack_FormatCode_Null:
-            ProcedureReturn #MsgPack_DataTypes_Null
-            
-        Case #MsgPack_FormatCode_False:
-        Case #MsgPack_FormatCode_True:
-            ProcedureReturn #MsgPack_DataTypes_Boolean
-            
-        Case #MsgPack_FormatCode_False:
-        Case #MsgPack_FormatCode_True:
-            ProcedureReturn #MsgPack_DataTypes_Boolean
-        
-        Case #MsgPack_FormatCode_Bin8:
-        Case #MsgPack_FormatCode_Bin16:
-        Case #MsgPack_FormatCode_Bin32:
-            ProcedureReturn #MsgPack_DataTypes_Binary
-
-        Case #MsgPack_FormatCode_FixArray:
-        Case #MsgPack_FormatCode_Array16:
-        Case #MsgPack_FormatCode_Array32:
-            ProcedureReturn #MsgPack_DataTypes_Array
-
-        Case #MsgPack_FormatCode_FixMap:
-        Case #MsgPack_FormatCode_Map16:
-        Case #MsgPack_FormatCode_Map32:
-            ProcedureReturn #MsgPack_DataTypes_Map
-
-        Case #MsgPack_FormatCode_Ext8:
-        Case #MsgPack_FormatCode_Ext16:
-        Case #MsgPack_FormatCode_Ext32:
-        Case #MsgPack_FormatCode_FixExt1:
-        Case #MsgPack_FormatCode_FixExt2:
-        Case #MsgPack_FormatCode_FixExt4:
-        Case #MsgPack_FormatCode_FixExt8:
-        Case #MsgPack_FormatCode_FixExt16:
-            ProcedureReturn #MsgPack_DataTypes_Ext
-        
-        Case #MsgPack_FormatCode_Invalid:
-        Default:
-            ; FIXME: ADD MESSAGE HERE !!!
-            DebuggerWarning("")
-            ProcedureReturn #MsgPack_DataTypes_Unknown
-    EndSelect
+	Select FormatCode
+		Case #MsgPack_FormatCode_FixIntPositive,
+		     #MsgPack_FormatCode_UInt8,
+		     #MsgPack_FormatCode_UInt16,
+		     #MsgPack_FormatCode_UInt32,
+		     #MsgPack_FormatCode_UInt64,
+		     #MsgPack_FormatCode_Int8,
+		     #MsgPack_FormatCode_Int16,
+		     #MsgPack_FormatCode_Int32,
+		     #MsgPack_FormatCode_Int64,
+		     #MsgPack_FormatCode_FixIntNegative:
+			ProcedureReturn #MsgPack_DataTypes_Integer
+			
+		Case #MsgPack_FormatCode_Float32,
+		     #MsgPack_FormatCode_Float64:
+			ProcedureReturn #MsgPack_DataTypes_Float
+			
+		Case #MsgPack_FormatCode_FixStr,
+		     #MsgPack_FormatCode_Str8,
+		     #MsgPack_FormatCode_Str16,
+		     #MsgPack_FormatCode_Str32:
+			ProcedureReturn #MsgPack_DataTypes_String
+			
+		Case #MsgPack_FormatCode_Null:
+			ProcedureReturn #MsgPack_DataTypes_Null
+			
+		Case #MsgPack_FormatCode_False,
+		     #MsgPack_FormatCode_True:
+			ProcedureReturn #MsgPack_DataTypes_Boolean
+			
+		Case #MsgPack_FormatCode_Bin8,
+		     #MsgPack_FormatCode_Bin16,
+		     #MsgPack_FormatCode_Bin32:
+			ProcedureReturn #MsgPack_DataTypes_Binary
+			
+		Case #MsgPack_FormatCode_FixArray,
+		     #MsgPack_FormatCode_Array16,
+		     #MsgPack_FormatCode_Array32:
+			ProcedureReturn #MsgPack_DataTypes_Array
+			
+		Case #MsgPack_FormatCode_FixMap,
+		     #MsgPack_FormatCode_Map16,
+		     #MsgPack_FormatCode_Map32:
+			ProcedureReturn #MsgPack_DataTypes_Map
+			
+		Case #MsgPack_FormatCode_Ext8,
+		     #MsgPack_FormatCode_Ext16,
+		     #MsgPack_FormatCode_Ext32,
+		     #MsgPack_FormatCode_FixExt1,
+		     #MsgPack_FormatCode_FixExt2,
+		     #MsgPack_FormatCode_FixExt4,
+		     #MsgPack_FormatCode_FixExt8,
+		     #MsgPack_FormatCode_FixExt16:
+			ProcedureReturn #MsgPack_DataTypes_Extension
+			
+		Case #MsgPack_FormatCode_Invalid:
+		Default:
+			; FIXME: ADD MESSAGE HERE !!!
+			DebuggerWarning("")
+			ProcedureReturn #MsgPack_DataTypes_Unknown
+	EndSelect
 EndProcedure

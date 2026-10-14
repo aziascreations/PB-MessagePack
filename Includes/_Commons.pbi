@@ -66,7 +66,6 @@ Enumeration _MsgPack_DataTypes
 	#MsgPack_DataTypes_Binary
 	#MsgPack_DataTypes_Array
 	#MsgPack_DataTypes_Map
-	#MsgPack_DataTypes_Ext
 	#MsgPack_DataTypes_Extension
 EndEnumeration
 

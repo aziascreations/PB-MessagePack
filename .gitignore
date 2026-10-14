@@ -17,3 +17,4 @@
 Trash/
 *.7z
 *.zip
+/spec*

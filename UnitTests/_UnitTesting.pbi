@@ -50,6 +50,14 @@ Procedure AssertEqualsB(Val1.b, Val2.b, TestName.s="")
 	EndIf
 EndProcedure
 
+Procedure AssertEqualsQ(Val1.q, Val2.q, TestName.s="")
+	If Val1 = Val2
+		Pass(TestName)
+	Else
+		Fail(TestName, Str(Val1) + " <> " + Str(Val2))
+	EndIf
+EndProcedure
+
 Procedure AssertNotEquals(Val1, Val2, TestName.s="")
 	If Val1 <> Val2
 		Pass(TestName)

@@ -71,6 +71,7 @@ Procedure.q _MsgPackGetValueDynamicSize_4After(*MsgPackData.MsgPackData)
     ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 EndProcedure
 
+; FIXME: Rename the VariableSize to InlinedSize, the name is dogshit and doesn not convey what it represents, AT ALL !!!
 Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode, *VariableSizeQ = #Null, *ValueStartOffsetB = #Null)
     CompilerIf Not #MsgPack_DisableNullChecks
         If Not *MsgPackData
@@ -89,12 +90,13 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
                 PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %01111111))
             EndIf
             If *ValueStartOffsetB <> #Null
+            	; FIXME: Is this right ?!?
                 PokeB(*ValueStartOffsetB, 1)
             EndIf
             ProcedureReturn #True
             
-        Case #MsgPack_FormatCode_FixStr:
-        Case #MsgPack_FormatCode_FixIntNegative:
+        Case #MsgPack_FormatCode_FixStr,
+             #MsgPack_FormatCode_FixIntNegative:
             If *VariableSizeQ <> #Null
                 PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00011111))
             EndIf
@@ -103,8 +105,8 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
             EndIf
             ProcedureReturn #True
             
-        Case #MsgPack_FormatCode_FixArray:
-        Case #MsgPack_FormatCode_FixMap:
+        Case #MsgPack_FormatCode_FixArray,
+             #MsgPack_FormatCode_FixMap:
             If *VariableSizeQ <> #Null
                 PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00001111))
             EndIf
@@ -113,39 +115,39 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
             EndIf
             ProcedureReturn #True
             
-        Case #MsgPack_FormatCode_Ext8:
             ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
-        Case #MsgPack_FormatCode_Str8:
-        Case #MsgPack_FormatCode_Bin8:
-            If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_1After(*MsgPackData))
-            EndIf
-            If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, 2)
-            EndIf
-            ProcedureReturn #True
-            
-        Case #MsgPack_FormatCode_Ext16:
-            ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
-        Case #MsgPack_FormatCode_Str16:
-        Case #MsgPack_FormatCode_Bin16:
-        Case #MsgPack_FormatCode_Array16:
-        Case #MsgPack_FormatCode_Map16:
-            If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_2After(*MsgPackData))    
-            EndIf
-            If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, 3)
-            EndIf
-            ProcedureReturn #True
-            
-        Case #MsgPack_FormatCode_Ext32:
-            ; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
-        Case #MsgPack_FormatCode_Str32:
-        Case #MsgPack_FormatCode_Bin32:
-        Case #MsgPack_FormatCode_Array32:
-        Case #MsgPack_FormatCode_Map32:
-            If *VariableSizeQ <> #Null
+        Case #MsgPack_FormatCode_Ext8,
+             #MsgPack_FormatCode_Str8,
+             #MsgPack_FormatCode_Bin8:
+        	If *VariableSizeQ <> #Null
+        		PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_1After(*MsgPackData))
+        	EndIf
+        	If *ValueStartOffsetB <> #Null
+        		PokeB(*ValueStartOffsetB, 2)
+        	EndIf
+        	ProcedureReturn #True
+        	
+        	; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
+        Case #MsgPack_FormatCode_Ext16,
+             #MsgPack_FormatCode_Str16,
+             #MsgPack_FormatCode_Bin16,
+             #MsgPack_FormatCode_Array16,
+             #MsgPack_FormatCode_Map16:
+        	If *VariableSizeQ <> #Null
+        		PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_2After(*MsgPackData))    
+        	EndIf
+        	If *ValueStartOffsetB <> #Null
+        		PokeB(*ValueStartOffsetB, 3)
+        	EndIf
+        	ProcedureReturn #True
+        	
+        	; TODO: Check if it should it add +1 to *ValueStartOffsetB for extensions ?
+        Case #MsgPack_FormatCode_Ext32,
+             #MsgPack_FormatCode_Str32,
+             #MsgPack_FormatCode_Bin32,
+             #MsgPack_FormatCode_Array32,
+             #MsgPack_FormatCode_Map32:
+        	If *VariableSizeQ <> #Null
                 PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_4After(*MsgPackData))    
             EndIf
             If *ValueStartOffsetB <> #Null
