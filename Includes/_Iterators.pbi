@@ -41,9 +41,16 @@ XIncludeFile "./_Allocators.pbi"
 ; /!\ Do not use outside of this file /!\ 
 ; /!\ All macro/procedure here assume the caller has checked for null and that the format code is valid for this /!\
 
-Macro _MsgPackGetValueDynamicSize_Within(MsgPackData, Mask) : (PeekA(MsgPackData\Buffer + MsgPackData\BufferOffset) & Mask) : EndMacro
+; Returns the field's size that is included in the field's format code like `[XXXYYYY]` where
+;  `XXX` is the format code bits and `YYYYY` the value's dynamic size.
+; Applies to: FixStr, FixArray, FixMap
+;     Remark: Doesn't apply to FixInt variants since those have their own function for extracting the value.
+Macro _MsgPackGetFieldDynamicSize_Within(MsgPackData, Mask) : (PeekA(MsgPackData\Buffer + MsgPackData\BufferOffset) & Mask) : EndMacro
 
-Procedure.q _MsgPackGetValueDynamicSize_1After(*MsgPackData.MsgPackData)
+; Returns the field's dynamic size based on the byte right after the format code.
+; Applies to: Str8, Bin8, Ext8
+;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
+Procedure.q _MsgPackGetFieldDynamicSize_1After(*MsgPackData.MsgPackData)
     If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 1)
         DebuggerWarning("We have less than 1 byte to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
@@ -52,7 +59,10 @@ Procedure.q _MsgPackGetValueDynamicSize_1After(*MsgPackData.MsgPackData)
     ProcedureReturn PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 EndProcedure
 
-Procedure.q _MsgPackGetValueDynamicSize_2After(*MsgPackData.MsgPackData)
+; Returns the field's dynamic size based on the 2 bytes right after the format code.
+; Applies to: Str16, Bin16, Ext16, Array16, Map16
+;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
+Procedure.q _MsgPackGetFieldDynamicSize_2After(*MsgPackData.MsgPackData)
     If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 2)
         DebuggerWarning("We have less than 2 bytes to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
@@ -61,8 +71,10 @@ Procedure.q _MsgPackGetValueDynamicSize_2After(*MsgPackData.MsgPackData)
     ProcedureReturn EndianSwapU(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 EndProcedure
 
-; Do not use outside of this file !!!
-Procedure.q _MsgPackGetValueDynamicSize_4After(*MsgPackData.MsgPackData)
+; Returns the field's dynamic size based on the 4 bytes right after the format code.
+; Applies to: Str32, Bin32, Ext32, Array32, Map32
+;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
+Procedure.q _MsgPackGetFieldDynamicSize_4After(*MsgPackData.MsgPackData)
     If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 4)
         DebuggerWarning("We have less than 4 bytes to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
@@ -71,8 +83,10 @@ Procedure.q _MsgPackGetValueDynamicSize_4After(*MsgPackData.MsgPackData)
     ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 EndProcedure
 
-; FIXME: Rename the VariableSize to InlinedSize, the name is dogshit and doesn not convey what it represents, AT ALL !!!
-Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode, *VariableSizeQ = #Null, *ValueStartOffsetB = #Null)
+; Returns a given format code's spacing info based on itself and the data in the given MsgPack buffer.
+; ???
+;     Remark: Doesn't apply to FixInt/Int/UInt variants since those have their own function for extracting the value.
+Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode, *VariableSizeQ = #Null, *ValueStartOffsetB = #Null)
     CompilerIf Not #MsgPack_DisableNullChecks
         If Not *MsgPackData
             DebuggerError("A #Null MsgPackData pointer was passed !")
@@ -87,7 +101,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
     Select ExaminedDataType
         Case #MsgPack_FormatCode_FixIntPositive:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %01111111))
+                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %01111111))
             EndIf
             If *ValueStartOffsetB <> #Null
             	; FIXME: Is this right ?!?
@@ -98,7 +112,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
         Case #MsgPack_FormatCode_FixStr,
              #MsgPack_FormatCode_FixIntNegative:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00011111))
+                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00011111))
             EndIf
             If *ValueStartOffsetB <> #Null
                 PokeB(*ValueStartOffsetB, 1)
@@ -108,7 +122,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
         Case #MsgPack_FormatCode_FixArray,
              #MsgPack_FormatCode_FixMap:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_Within(*MsgPackData, %00001111))
+                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00001111))
             EndIf
             If *ValueStartOffsetB <> #Null
                 PokeB(*ValueStartOffsetB, 1)
@@ -120,7 +134,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
              #MsgPack_FormatCode_Str8,
              #MsgPack_FormatCode_Bin8:
         	If *VariableSizeQ <> #Null
-        		PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_1After(*MsgPackData))
+        		PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_1After(*MsgPackData))
         	EndIf
         	If *ValueStartOffsetB <> #Null
         		PokeB(*ValueStartOffsetB, 2)
@@ -134,7 +148,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
              #MsgPack_FormatCode_Array16,
              #MsgPack_FormatCode_Map16:
         	If *VariableSizeQ <> #Null
-        		PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_2After(*MsgPackData))    
+        		PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_2After(*MsgPackData))    
         	EndIf
         	If *ValueStartOffsetB <> #Null
         		PokeB(*ValueStartOffsetB, 3)
@@ -148,7 +162,7 @@ Procedure _MsgPackGetValueMetaInfo(*MsgPackData.MsgPackData, ExaminedDataType.Ms
              #MsgPack_FormatCode_Array32,
              #MsgPack_FormatCode_Map32:
         	If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetValueDynamicSize_4After(*MsgPackData))    
+                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_4After(*MsgPackData))    
             EndIf
             If *ValueStartOffsetB <> #Null
                 PokeB(*ValueStartOffsetB, 5)
@@ -170,9 +184,9 @@ EndProcedure
 ;-> > Public
 
 ; NOTE: Not sure if making this public is useful :/
-Procedure.q MsgPackGetValueDynamicSize(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode)
+Procedure.q MsgPackGetFieldDynamicSize(*MsgPackData.MsgPackData, ExaminedDataType.MsgPack_FormatCode)
     Protected ReturnedValue.q = 0
-    _MsgPackGetValueMetaInfo(*MsgPackData, ExaminedDataType, @ReturnedValue, #Null)
+    _MsgPackGetFieldSpacingInfo(*MsgPackData, ExaminedDataType, @ReturnedValue, #Null)
     ProcedureReturn ReturnedValue
 EndProcedure
 
@@ -208,7 +222,7 @@ Procedure.q MsgPackGetFieldFullSize(*MsgPackData.MsgPackData)
     EndIf
     
     ; We ignore the returned boolean since we maw not care about this result later down the line.
-    _MsgPackGetValueMetaInfo(*MsgPackData, ExaminedFormatCode, @FieldVariableSize, @FieldValueOffset)
+    _MsgPackGetFieldSpacingInfo(*MsgPackData, ExaminedFormatCode, @FieldVariableSize, @FieldValueOffset)
     
     If IsIterable
         ; Iterables, we'll have to go recursive

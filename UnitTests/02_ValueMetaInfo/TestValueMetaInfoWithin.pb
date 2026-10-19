@@ -18,7 +18,7 @@ Procedure TestValueMetaInfoWithin(CodeForBuffer.a, ExpectedVariableSize.q, Expec
     Protected ReturnedVariableSize.q
     Protected ReturnedDataOffset.b
 
-    _MsgPackGetValueMetaInfo(*BufferHolder, ExaminedFormatCode, @ReturnedVariableSize, @ReturnedDataOffset)
+    _MsgPackGetFieldSpacingInfo(*BufferHolder, ExaminedFormatCode, @ReturnedVariableSize, @ReturnedDataOffset)
 
     AssertEqualsQ(ReturnedVariableSize, ExpectedVariableSize, TestName + " (Value)")
 
