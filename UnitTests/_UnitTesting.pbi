@@ -34,6 +34,14 @@ Procedure AssertIsTrue(Bool.b=#True, TestName.s="", Details.s="")
 	EndIf
 EndProcedure
 
+Procedure AssertEquals(Val1, Val2, TestName.s="")
+	If Val1 = Val2
+		Pass(TestName)
+	Else
+		Fail(TestName, Str(Val1) + " <> " + Str(Val2))
+	EndIf
+EndProcedure
+
 Procedure AssertEqualsA(Val1.a, Val2.a, TestName.s="")
 	If Val1 = Val2
 		Pass(TestName)

@@ -46,7 +46,7 @@ Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
 		ProcedureReturn #MsgPack_FormatCode_Invalid
 	EndIf
 	
-	DataFormatCode = PeekA(*MsgPackData\Buffer)
+	DataFormatCode = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
 	
 	If DataFormatCode < $80
 		; 0x00 - 0x7F

@@ -32,6 +32,16 @@ XIncludeFile "./_Commons.pbi"
 
 ;-> Getters
 
+;Procedure.i MsgPackReadNull(*MsgPackData.MsgPackData)
+;	CompilerIf Not #MsgPack_DisableNullChecks
+;		If Not *MsgPackData
+;			DebuggerError("A #Null MsgPackData pointer was passed !")
+;			ProcedureReturn #Null
+;		EndIf
+;	CompilerEndIf
+;EndProcedure
+
+
 ; Reads a boolean from the given data.
 ; Returns: The boolean value `#True` or `#False` as a `.b`
 ; OnError: Returns `#False` and sets the `MsgPackData\LastError` field.
@@ -56,10 +66,16 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	; We don't check if we're 1 byte off the end since the previous check implies it.
 
 	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_False
-	    *MsgPackData\BufferOffset + 1
+		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
+	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
+		EndIf
+		
 		ProcedureReturn #False
     ElseIf PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_True
-	    *MsgPackData\BufferOffset + 1
+		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
+	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
+	    EndIf
+	    
 		ProcedureReturn #True
 	Else
 		DebuggerError("The format code isn't the one for a boolean !  (" +
@@ -100,7 +116,10 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteLiteral(*MsgPackData.MsgPackData, Liter
 	EndIf
 	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, LiteralFormatCode)
-	*MsgPackData\BufferOffset + 1
+
+	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterWrite)
+		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
+	EndIf
 	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
@@ -119,6 +138,17 @@ EndProcedure
 
 ;-> Macro aliases
 
+; @Function MsgPackWriteNull(*Ptr.MsgPackData).MsgPack_ErrorCode
+; Writes a null field in the given MessagePack at its current offset. \
+; The offset may be grown if required, and if ´MsgPackData\Flags´ has ´???´ unset.
+; The offset may be incremented if the ´MsgPackData\Flags´ has ´???´ set.
+; @Returns
+;  * `#MsgPack_Error_Success` on success.
+;  * `#MsgPack_Error_NullPointerGiven` if `MsgPackData` is `#Null`
+; @SideEffects
+;  * ´MsgPackData\LastError´ will contains the returned code, except for the ´#MsgPack_Error_NullPointerGiven´ case.
+; @SupportedOS Windows, Linux, MacOS
+; @SupportedCPU x86, x64, arm64
 Macro MsgPackWriteNull(MsgPackData) : _MsgPackWriteLiteral(MsgPackData, #MsgPack_FormatCode_Null) : EndMacro
 
 Macro MsgPackWriteTrue(MsgPackData) : _MsgPackWriteLiteral(MsgPackData, #MsgPack_FormatCode_True) : EndMacro

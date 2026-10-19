@@ -157,11 +157,21 @@ EnumerationBinary _MsgPack_DataFlags
 	; Not implemented
 	#MsgPack_DataFlags_IsReadOnly     = %0000000000000001
 
-	; Not implemented
+	; FIXME: Not implemented
+	; Prevents a `MsgPackData` structure from auto-growing its buffer when needed.
+	; It may make some functions return `#`
 	#MsgPack_DataFlags_CannotGrow     = %0000000000000010
 
 	; Not implemented
 	#MsgPack_DataFlags_NoBufferFree   = %0000000000000100
+
+	; Indicates a given `MsgPackData` should increment its buffer offset after
+	;  reading a value using the standard procedures.
+	#MsgPack_DataFlags_MoveOffsetAfterRead = %0000000000001000
+
+	; Indicates a given `MsgPackData` should increment its buffer offset after
+	;  writing a value using the standard procedures.
+	#MsgPack_DataFlags_MoveOffsetAfterWrite = %0000000000010000
 
 	; Indicates a given `MsgPackData` is made to be iterated on.
 	; And it implies it represents a Map or Array.
