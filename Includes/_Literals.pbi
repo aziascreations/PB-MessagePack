@@ -24,6 +24,7 @@ CompilerIf #PB_Compiler_IsMainFile
 CompilerEndIf
 
 XIncludeFile "./_Commons.pbi"
+XIncludeFile "./_Allocators.pbi"
 
 
 

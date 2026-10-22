@@ -20,6 +20,7 @@
 ;- Compiler directive
 
 XIncludeFile "./_Commons.pbi"
+XIncludeFile "./_Allocators.pbi"
 
 
 

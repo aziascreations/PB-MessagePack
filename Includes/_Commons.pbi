@@ -138,12 +138,14 @@ Enumeration _MsgPack_ErrorCodes
 	; Common errors
 	#MsgPack_Error_NullPointerGiven = 1
 	#MsgPack_Error_BufferTooSmall = 2
+	#MsgPack_Error_InvalidValue = 3
+	#MsgPack_Error_ValueOverflow = 4
 
 	; Shouldn't re-use it.
-	#MsgPack_Error_FailedToGrowBuffer = 3
-	#MsgPack_Error_AtOrPastTheEndOfBuffer = 4
-	#MsgPack_Error_ReadPastEndOfBuffer = 5
-	#MsgPack_Error_InvalidFormatCode = 6
+	#MsgPack_Error_FailedToGrowBuffer = 10
+	#MsgPack_Error_AtOrPastTheEndOfBuffer = 11
+	#MsgPack_Error_ReadPastEndOfBuffer = 12
+	#MsgPack_Error_InvalidFormatCode = 13
 
 	; 5x - Binary
 	#MsgPack_Error_BinaryDataSizeIsNegative = 50
@@ -154,15 +156,14 @@ Enumeration _MsgPack_ErrorCodes
 EndEnumeration
 
 EnumerationBinary _MsgPack_DataFlags
-	; Not implemented
+	; FIXME: Not implemented
 	#MsgPack_DataFlags_IsReadOnly     = %0000000000000001
 
-	; FIXME: Not implemented
 	; Prevents a `MsgPackData` structure from auto-growing its buffer when needed.
-	; It may make some functions return `#`
+	; It may make some functions return `#MsgPack_Error_CannotGrowBufferDueToConfig`.
 	#MsgPack_DataFlags_CannotGrow     = %0000000000000010
 
-	; Not implemented
+	; FIXME: Not implemented
 	#MsgPack_DataFlags_NoBufferFree   = %0000000000000100
 
 	; Indicates a given `MsgPackData` should increment its buffer offset after
@@ -173,11 +174,12 @@ EnumerationBinary _MsgPack_DataFlags
 	;  writing a value using the standard procedures.
 	#MsgPack_DataFlags_MoveOffsetAfterWrite = %0000000000010000
 
+	; FIXME: Not implemented
 	; Indicates a given `MsgPackData` is made to be iterated on.
 	; And it implies it represents a Map or Array.
-	#MsgPack_DataFlags_Iterator       = %0000000000001000
-	#MsgPack_DataFlags_CanProvideKeys = %0000000000010000
-	#MsgPack_DataFlags_CanProvideVals = %0000000000100000
+	#MsgPack_DataFlags_Iterator       = %0000000000100000
+	#MsgPack_DataFlags_CanProvideKeys = %0000000001000000
+	#MsgPack_DataFlags_CanProvideVals = %0000000010000000
 EndEnumeration
 
 EnumerationBinary _MsgPack_ExaminationOptions
@@ -212,8 +214,11 @@ Structure MsgPackData
 	; Used in place of `MemorySize()` to reduce syscalls.
 	BufferSize.i
 	
-	; Temp mechanism for buffer growth.
-	BufferGrowthIncrements.i
+	; Multiple of which any buffer size increase should match.
+	; Also applies to its initial size. (FIXME)
+	; If the requested size doesn't match one, we'll use the nearest next multiple.
+	; If set to `1` or lower, we'll ignore this mechanism.
+	BufferGrowthIncrement.i
 
 	; IteratorSizeLeft, or snoething like this.
 	
@@ -257,53 +262,6 @@ Procedure.MsgPack_ErrorCode MsgPackLastError(*MsgPackData.MsgPackData)
 	EndIf
 
 	ProcedureReturn *MsgPackData\LastError
-EndProcedure
-
-
-; Should be moved to allocators.
-; But it would fuck up the splitting of responsibility.
-; TODO: Add callback in the structure, maybe ?
-; FIXME: Use a .q for the size !!!!
-Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, MinimalGrowthSize.i = -1)
-	Protected GrowthSize.i
-	Protected *NewBuffer
-	
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
-
-	; Often set by the callers, but programmers are likely to use it too,
-	;  so I'm leaving it here.
-	*MsgPackData\LastError = #MsgPack_Error_Success
-	
-	If *MsgPackData\BufferGrowthIncrements <= 0
-		DebuggerError("Cannot grow a buffer with no growth increments !")
-
-		*MsgPackData\LastError = #MsgPack_Error_CannotGrowBufferDueToConfig
-		ProcedureReturn #MsgPack_Error_CannotGrowBufferDueToConfig
-	EndIf
-	
-	; TODO: Improve logic later, i can't be bothered now
-	GrowthSize = *MsgPackData\BufferGrowthIncrements
-	If MinimalGrowthSize > GrowthSize
-		GrowthSize = ((MinimalGrowthSize + GrowthSize - 1) / GrowthSize) * GrowthSize
-	EndIf
-	
-	*NewBuffer = ReAllocateMemory(*MsgPackData\Buffer, *MsgPackData\BufferSize + GrowthSize)
-	If Not *NewBuffer
-		DebuggerError("Failed to reallocate memory for buffer !")
-
-		*MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
-		ProcedureReturn #MsgPack_Error_FailedToGrowBuffer
-	EndIf
-	
-	*MsgPackData\Buffer = *NewBuffer
-	*MsgPackData\BufferSize + GrowthSize
-	
-	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 

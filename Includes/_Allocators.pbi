@@ -41,7 +41,7 @@ Procedure.i MsgPackCreate(InitialSize.i)
 	If *ReturnedValue <> #Null
 		*ReturnedValue\BufferOffset = 0
 		*ReturnedValue\BufferSize = InitialSize
-		*ReturnedValue\BufferGrowthIncrements = InitialSize
+		*ReturnedValue\BufferGrowthIncrement = InitialSize
 		*ReturnedValue\DataFlags = 0
 		
 		*ReturnedValue\Buffer = AllocateMemory(InitialSize)
@@ -72,7 +72,7 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i)
 	
 	*ReturnedValue\BufferOffset = 0
 	*ReturnedValue\BufferSize = BufferSize
-	*ReturnedValue\BufferGrowthIncrements = 0
+	*ReturnedValue\BufferGrowthIncrement = 0
 	*ReturnedValue\DataFlags = 0
 	*ReturnedValue\Buffer = *Buffer
 	
@@ -92,4 +92,61 @@ Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b = #False)
 	EndIf
 	
 	ProcedureReturn #True
+EndProcedure
+
+
+; TODO: Add callback in the structure, maybe ?
+; FIXME: Use a .q for the size !!!!
+Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeIncrease.i)
+	Protected GrowthSize.q
+	Protected NewSize.q
+	Protected *NewBuffer
+	
+	CompilerIf Not #MsgPack_DisableNullChecks
+		If Not *MsgPackData
+			DebuggerError("A #Null MsgPackData pointer was passed !")
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
+		EndIf
+	CompilerEndIf
+
+	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_CannotGrow)
+		*MsgPackData\LastError = #MsgPack_Error_CannotGrowBufferDueToConfig
+		ProcedureReturn #MsgPack_Error_CannotGrowBufferDueToConfig
+	EndIf
+
+	If DesiredSizeIncrease <= 0
+		DebuggerError("Negative growth value was passed !")
+		*MsgPackData\LastError = #MsgPack_Error_InvalidValue
+		ProcedureReturn #MsgPack_Error_InvalidValue
+	EndIf
+	
+	If *MsgPackData\BufferGrowthIncrement <= 1
+		GrowthSize = DesiredSizeIncrease
+		NewSize = *MsgPackData\BufferSize + GrowthSize
+	Else
+		GrowthSize = (DesiredSizeIncrease % *MsgPackData\BufferGrowthIncrement) + DesiredSizeIncrease
+		NewSize = ((*MsgPackData\BufferSize + GrowthSize) % *MsgPackData\BufferGrowthIncrement) + (*MsgPackData\BufferSize + GrowthSize)
+	EndIf
+
+	If (GrowthSize < 0) Or (*MsgPackData\BufferSize + GrowthSize < 0) Or (NewSize < 0) Or (NewSize < *MsgPackData\BufferSize)
+		DebuggerError("We had an overflow in one of the growth values, the calculation is messed up !")
+		*MsgPackData\LastError = #MsgPack_Error_ValueOverflow
+		ProcedureReturn #MsgPack_Error_ValueOverflow
+	EndIf
+	
+	*NewBuffer = ReAllocateMemory(*MsgPackData\Buffer, NewSize)
+	If Not *NewBuffer
+		DebuggerError("Failed to reallocate memory for buffer !")
+
+		*MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
+		ProcedureReturn #MsgPack_Error_FailedToGrowBuffer
+	EndIf
+	
+	*MsgPackData\Buffer = *NewBuffer
+	*MsgPackData\BufferSize = NewSize
+	
+	; Often set by the callers, but programmers are likely to use this
+	;  function directly, so I'm leaving it here.
+	*MsgPackData\LastError = #MsgPack_Error_Success
+	ProcedureReturn #MsgPack_Error_Success
 EndProcedure

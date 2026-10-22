@@ -25,6 +25,7 @@ CompilerEndIf
 
 ; Includes the required "Endianness.pbi"
 XIncludeFile "./_Commons.pbi"
+XIncludeFile "./_Allocators.pbi"
 
 
 
