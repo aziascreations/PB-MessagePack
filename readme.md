@@ -5,26 +5,55 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
 
 
 ## Features
-...
-
-
-## Limitations
-* More involved Map and Array parsing
-  * No dynamic typing
+* Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification
+* Explicit or implicit [typing]
+  * [the autotyping over which other libs sometimes give no control]
 * ???
 
 
-## ???
-...
+## Limitations
+* Usage of larger `.q` type for field sizes
+  * *Helps prevent unsigned numbers being passed around carelessly*
+* More involved Map and Array parsing
+  * *No dynamic typing*
+* No custom `malloc`/`realloc`/`free` callbacks
+* ???
 
 
-## Cloning
+## Usage
+
+### Submodule
 Adding submodule:
 ```shell
 git submodule add https://github.com/aziascreations/PB-MessagePack.git Includes/PB-MessagePack
 ```
 
 Pull latest submodule version:
+```shell
+git submodule update --init --recursive
+```
+
+
+### Inclusion
+...
+
+
+## Examples
+
+### Writing explicitely
+
+```purebasic
+...
+```
+
+
+## Cloning
+Use this command to clone the repository and its submodules:
+```
+git clone --recurse-submodules https://github.com/aziascreations/PB-MessagePack.git
+```
+
+If you forgot the submodules, use this command:
 ```shell
 git submodule update --init --recursive
 ```
