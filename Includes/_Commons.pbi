@@ -163,7 +163,7 @@ EnumerationBinary _MsgPack_DataFlags
 	; It may make some functions return `#MsgPack_Error_CannotGrowBufferDueToConfig`.
 	#MsgPack_DataFlags_CannotGrow     = %0000000000000010
 
-	; FIXME: Not implemented
+	; Indicates the buffer is owned by the caller and must not be freed by `MsgPackFree()`.
 	#MsgPack_DataFlags_NoBufferFree   = %0000000000000100
 
 	; Indicates a given `MsgPackData` should increment its buffer offset after

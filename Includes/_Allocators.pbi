@@ -46,7 +46,7 @@ Procedure.i MsgPackCreate(InitialSize.i)
 		
 		*ReturnedValue\Buffer = AllocateMemory(InitialSize)
 		If Not *ReturnedValue\Buffer
-			DebuggerError("Failed to allocate memory for buffer !")
+			Debug("Failed to allocate memory for buffer !")
 			FreeStructure(*ReturnedValue)
 			*ReturnedValue = #Null
 		EndIf
@@ -55,10 +55,12 @@ Procedure.i MsgPackCreate(InitialSize.i)
 	ProcedureReturn *ReturnedValue
 EndProcedure
 
-; Wraps an existing, caller-owned buffer so it can be read with ReadA/ReadI8.
-; Does not copy or take ownership of *Buffer: free it yourself, and pass
-; FreeDataBuffer = #False to MsgPackFreeMsgBuffer for the wrapper it returns.
-Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i)
+; Wraps an existing buffer into an internal structure without copying it.
+; If `GiveOwnership` is `#False`, the buffer stays owned by the caller: it will never
+;  be grown or freed by this include, and the caller must free it themselves.
+; If `GiveOwnership` is `#True`, `*Buffer` MUST come from `AllocateMemory()`, since it
+;  may be reallocated when growing, and it can be freed through `MsgPackFree()`.
+Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False)
 	Protected *ReturnedValue.MsgPackData = #Null
 	
 	If *Buffer = #Null Or BufferSize <= 0
@@ -75,6 +77,10 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i)
 	*ReturnedValue\BufferGrowthIncrement = 0
 	*ReturnedValue\DataFlags = 0
 	*ReturnedValue\Buffer = *Buffer
+
+	If Not GiveOwnership
+		*ReturnedValue\DataFlags = #MsgPack_DataFlags_CannotGrow | #MsgPack_DataFlags_NoBufferFree
+	EndIf
 	
 	ProcedureReturn *ReturnedValue
 EndProcedure
@@ -84,12 +90,15 @@ Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b = #False)
 		ProcedureReturn #False
 	EndIf
 	
-	If *MsgPackData <> #Null
-		If *MsgPackData\Buffer <> #Null And FreeDataBuffer
-			FreeMemory(*MsgPackData\Buffer)
-		EndIf
-		FreeStructure(*MsgPackData)
+	If FreeDataBuffer And _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_NoBufferFree)
+		DebuggerError("Cannot free a buffer that is still owned by the caller !")
+		ProcedureReturn #False
 	EndIf
+
+	If *MsgPackData\Buffer <> #Null And FreeDataBuffer
+		FreeMemory(*MsgPackData\Buffer)
+	EndIf
+	FreeStructure(*MsgPackData)
 	
 	ProcedureReturn #True
 EndProcedure
@@ -98,7 +107,6 @@ EndProcedure
 ; TODO: Add callback in the structure, maybe ?
 ; FIXME: Use a .q for the size !!!!
 Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeIncrease.i)
-	Protected GrowthSize.q
 	Protected NewSize.q
 	Protected *NewBuffer
 	
@@ -120,15 +128,15 @@ Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeInc
 		ProcedureReturn #MsgPack_Error_InvalidValue
 	EndIf
 	
-	If *MsgPackData\BufferGrowthIncrement <= 1
-		GrowthSize = DesiredSizeIncrease
-		NewSize = *MsgPackData\BufferSize + GrowthSize
-	Else
-		GrowthSize = (DesiredSizeIncrease % *MsgPackData\BufferGrowthIncrement) + DesiredSizeIncrease
-		NewSize = ((*MsgPackData\BufferSize + GrowthSize) % *MsgPackData\BufferGrowthIncrement) + (*MsgPackData\BufferSize + GrowthSize)
+	NewSize = *MsgPackData\BufferSize + DesiredSizeIncrease
+
+	; Rounding up to the next multiple of `BufferGrowthIncrement`.
+	If *MsgPackData\BufferGrowthIncrement > 1
+		NewSize = ((NewSize + *MsgPackData\BufferGrowthIncrement - 1) / *MsgPackData\BufferGrowthIncrement) * *MsgPackData\BufferGrowthIncrement
 	EndIf
 
-	If (GrowthSize < 0) Or (*MsgPackData\BufferSize + GrowthSize < 0) Or (NewSize < 0) Or (NewSize < *MsgPackData\BufferSize)
+	; `DesiredSizeIncrease` is positive, so a new size that isn't bigger can only come from an overflow.
+	If NewSize <= *MsgPackData\BufferSize
 		DebuggerError("We had an overflow in one of the growth values, the calculation is messed up !")
 		*MsgPackData\LastError = #MsgPack_Error_ValueOverflow
 		ProcedureReturn #MsgPack_Error_ValueOverflow
@@ -136,7 +144,7 @@ Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeInc
 	
 	*NewBuffer = ReAllocateMemory(*MsgPackData\Buffer, NewSize)
 	If Not *NewBuffer
-		DebuggerError("Failed to reallocate memory for buffer !")
+		Debug("Failed to reallocate memory for buffer !")
 
 		*MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
 		ProcedureReturn #MsgPack_Error_FailedToGrowBuffer
