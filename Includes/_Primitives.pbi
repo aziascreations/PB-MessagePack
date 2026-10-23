@@ -32,11 +32,14 @@ XIncludeFile "./_Allocators.pbi"
 ; ------------------------------------------------------------------------------
 ;- Procedures
 
-;-> Getters & Setters
+;-> Internal helpers
 
-;-> > UInt8
-
-Procedure.MsgPack_ErrorCode MsgPackWriteUInt8(*MsgPackData.MsgPackData, Value.a)
+; Ensures `Size` bytes can be written at the current offset, growing the buffer by
+;  exactly the missing amount if needed.
+; Sets the structure's error code and returns it.
+Procedure.MsgPack_ErrorCode _MsgPackReserveWrite(*MsgPackData.MsgPackData, Size.i)
+	Protected MissingSize.i
+	
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
@@ -44,21 +47,67 @@ Procedure.MsgPack_ErrorCode MsgPackWriteUInt8(*MsgPackData.MsgPackData, Value.a)
 		EndIf
 	CompilerEndIf
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 2)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for UInt8...")
+	MissingSize = (*MsgPackData\BufferOffset + Size) - *MsgPackData\BufferSize
+	If MissingSize > 0
+		; The structure's error code field is set by the called function !
+		ProcedureReturn MsgPackGrow(*MsgPackData, MissingSize)
+	EndIf
+	
+	*MsgPackData\LastError = #MsgPack_Error_Success
+	ProcedureReturn #MsgPack_Error_Success
+EndProcedure
 
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 2)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
+
+; Checks that a value with the given `FormatCode` and total `Size` (format code included)
+;  can be read at the current offset.
+; Sets the structure's error code and returns it.
+Procedure.MsgPack_ErrorCode _MsgPackExpectRead(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, Size.i)
+	CompilerIf Not #MsgPack_DisableNullChecks
+		If Not *MsgPackData
+			DebuggerError("A #Null MsgPackData pointer was passed !")
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
 		EndIf
+	CompilerEndIf
+	
+	If _MsgPackIsAtTheEnd(*MsgPackData)
+		Debug("End of buffer reached, cannot check data format code !")
+		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
+		ProcedureReturn #MsgPack_Error_AtOrPastTheEndOfBuffer
+	EndIf
+	
+	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> FormatCode
+		Debug("Unexpected format code !  (" +
+		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
+		              " vs "+ RSet(Hex(FormatCode), 2, "0") + ")")
+		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+		ProcedureReturn #MsgPack_Error_InvalidFormatCode
+	EndIf
+	
+	If Not _MsgPackHasSpaceLeft(*MsgPackData, Size)
+		Debug("End of buffer reached, cannot read out of bounds !")
+		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+		ProcedureReturn #MsgPack_Error_BufferTooSmall
+	EndIf
+	
+	*MsgPackData\LastError = #MsgPack_Error_Success
+	ProcedureReturn #MsgPack_Error_Success
+EndProcedure
+
+
+
+;-> Getters & Setters
+
+;-> > UInt8
+Procedure.MsgPack_ErrorCode MsgPackWriteUInt8(*MsgPackData.MsgPackData, Value.a)
+	Protected ErrorCode.MsgPack_ErrorCode
+	
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 2)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
 	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt8)
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
-	
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 2
 	
 	ProcedureReturn #MsgPack_Error_Success
@@ -66,36 +115,9 @@ EndProcedure
 
 
 Procedure.a MsgPackReadUInt8(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.a = $00
+	Protected ReturnedValue.a
 	
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
-	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-	
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_UInt8
-		DebuggerError("The format code isn't the one for a UInt8 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_UInt8), 2, "0") + ")")
-
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
-		ProcedureReturn 0
-	EndIf
-	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 2)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_UInt8, 2) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
 	
@@ -106,32 +128,17 @@ Procedure.a MsgPackReadUInt8(*MsgPackData.MsgPackData)
 EndProcedure
 
 
-
 ;-> > Int8
-
 Procedure.MsgPack_ErrorCode MsgPackWriteInt8(*MsgPackData.MsgPackData, Value.b)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 2)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Int8...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 2)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 2)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
 	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int8)
 	PokeB(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
-	
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 2
 	
 	ProcedureReturn #MsgPack_Error_Success
@@ -139,624 +146,271 @@ EndProcedure
 
 
 Procedure.b MsgPackReadInt8(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.b = $00
+	Protected ReturnedValue.b
 	
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
-	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-	
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Int8
-		DebuggerError("The format code isn't the one for a Int8 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Int8), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
-		ProcedureReturn 0
-	EndIf
-	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 2)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Int8, 2) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
 	
 	ReturnedValue = PeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 2
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > UInt16
-
 Procedure.MsgPack_ErrorCode MsgPackWriteUInt16(*MsgPackData.MsgPackData, Value.u)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 3)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for UInt16...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 3)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 3)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt16)
 	PokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.u MsgPackReadUInt16(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.u = $0000
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.u
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_UInt16
-		DebuggerError("The format code isn't the one for a UInt16 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_UInt16), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_UInt16, 3) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 3)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapU16(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > Int16
-
 Procedure.MsgPack_ErrorCode MsgPackWriteInt16(*MsgPackData.MsgPackData, Value.w)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 3)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Int16...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 3)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 3)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int16)
 	PokeW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI16(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.w MsgPackReadInt16(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.w = $0000
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.w
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Int16
-		DebuggerError("The format code isn't the one for a Int16 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Int16), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Int16, 3) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 3)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapI16(PeekW(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 3
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > UInt32
-
 ; No unsigned Long in PureBasic: value is peeked/poked as-is via .l and returned unchanged.
 Procedure.MsgPack_ErrorCode MsgPackWriteUInt32(*MsgPackData.MsgPackData, Value.l)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for UInt32...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 5)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 5)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt32)
 	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.l MsgPackReadUInt32(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.l = $00000000
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.l
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_UInt32
-		DebuggerError("The format code isn't the one for a UInt32 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_UInt32), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_UInt32, 5) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > Int32
-
 Procedure.MsgPack_ErrorCode MsgPackWriteInt32(*MsgPackData.MsgPackData, Value.l)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Int32...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 5)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 5)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int32)
 	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.l MsgPackReadInt32(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.l = $00000000
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.l
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Int32
-		DebuggerError("The format code isn't the one for a Int32 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Int32), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Int32, 5) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > UInt64
-
 ; No unsigned Quad in PureBasic: value is peeked/poked as-is via .q and returned unchanged.
 Procedure.MsgPack_ErrorCode MsgPackWriteUInt64(*MsgPackData.MsgPackData, Value.q)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for UInt64...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 9)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 9)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_UInt64)
 	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.q MsgPackReadUInt64(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.q = 0
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.q
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_UInt64
-		DebuggerError("The format code isn't the one for a UInt64 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_UInt64), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_UInt64, 9) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > Int64
-
 Procedure.MsgPack_ErrorCode MsgPackWriteInt64(*MsgPackData.MsgPackData, Value.q)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Int64...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 9)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 9)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Int64)
 	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
-
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.q MsgPackReadInt64(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.q = 0
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.q
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Int64
-		DebuggerError("The format code isn't the one for a Int64 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Int64), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Int64, 9) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
+	
 	ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > Float32
 
+; The value's bits are moved and swapped as an integer, since loading a byte-swapped
+;  float into the FPU can alter its bits. (e.g.: NaN quieting on x87)
 Procedure.MsgPack_ErrorCode MsgPackWriteFloat32(*MsgPackData.MsgPackData, Value.f)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Float32...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 5)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 5)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Float32)
-	PokeF(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
-	EndianSwapPtr32(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
-
+	PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(PeekL(@Value)))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.f MsgPackReadFloat32(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.f = 0.0
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.f
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
-			ProcedureReturn 0
-	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Float32
-		DebuggerError("The format code isn't the one for a Float32 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Float32), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Float32, 5) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 5)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
-	ReturnedValue = PeekF(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
-	EndianSwapPtr32(@ReturnedValue)
+	
+	PokeL(@ReturnedValue, EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 5
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
 
 ;-> > > Float64
 
+; The value's bits are moved and swapped as an integer, since loading a byte-swapped
+;  float into the FPU can alter its bits. (e.g.: NaN quieting on x87)
 Procedure.MsgPack_ErrorCode MsgPackWriteFloat64(*MsgPackData.MsgPackData, Value.d)
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn #MsgPack_Error_NullPointerGiven
-		EndIf
-	CompilerEndIf
+	Protected ErrorCode.MsgPack_ErrorCode
 	
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		Protected GrowthErrorCode.MsgPack_ErrorCode
-		
-		Debug("Growing buffer for Float64...")
-
-		GrowthErrorCode = MsgPackGrow(*MsgPackData, 9)
-		If GrowthErrorCode <> #MsgPack_Error_Success
-			; The structure's error code field is set by the called function !
-			ProcedureReturn GrowthErrorCode
-		EndIf
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 9)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
 	EndIf
-
+	
 	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, #MsgPack_FormatCode_Float64)
-	PokeD(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
-	EndianSwapPtr64(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
-
+	PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(PeekQ(@Value)))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
 
 
 Procedure.d MsgPackReadFloat64(*MsgPackData.MsgPackData)
-	Protected ReturnedValue.d = 0.0
-
-	CompilerIf Not #MsgPack_DisableNullChecks
-		If Not *MsgPackData
-			DebuggerError("A #Null MsgPackData pointer was passed !")
-			ProcedureReturn 0
-		EndIf
-	CompilerEndIf
-
-	*MsgPackData\LastError = #MsgPack_Error_Success
+	Protected ReturnedValue.d
 	
-	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
-
-		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
+	If _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Float64, 9) <> #MsgPack_Error_Success
 		ProcedureReturn 0
 	EndIf
-
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> #MsgPack_FormatCode_Float64
-		DebuggerError("The format code isn't the one for a Float64 !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_Float64), 2, "0") + ")")
-					  
-		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
-		ProcedureReturn 0
-	EndIf
-
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 9)
-		DebuggerError("End of buffer reached, cannot read out of bounds !")
-		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
-		ProcedureReturn 0
-	EndIf
-
-	ReturnedValue = PeekD(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
-	EndianSwapPtr64(@ReturnedValue)
+	
+	PokeQ(@ReturnedValue, EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)))
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 9
-
+	
 	ProcedureReturn ReturnedValue
 EndProcedure
 
