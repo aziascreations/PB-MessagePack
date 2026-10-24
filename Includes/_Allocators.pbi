@@ -28,11 +28,16 @@ XIncludeFile "./_Commons.pbi"
 
 ;-> Thingies
 
-Procedure.i MsgPackCreate(InitialSize.i)
+Procedure.i MsgPackCreate(InitialSize.i, GrowthIncrement.i = 1)
 	Protected *ReturnedValue.MsgPackData = #Null
-	
+
 	If InitialSize <= 0
 		DebuggerWarning("Returning #Null, requested size was zero or negative")
+		ProcedureReturn #Null
+	EndIf
+
+	If GrowthIncrement <= 0
+		DebuggerWarning("Returning #Null, growth increment was zero or negative")
 		ProcedureReturn #Null
 	EndIf
 	
@@ -41,7 +46,7 @@ Procedure.i MsgPackCreate(InitialSize.i)
 	If *ReturnedValue <> #Null
 		*ReturnedValue\BufferOffset = 0
 		*ReturnedValue\BufferSize = InitialSize
-		*ReturnedValue\BufferGrowthIncrement = InitialSize
+		*ReturnedValue\BufferGrowthIncrement = GrowthIncrement
 		*ReturnedValue\DataFlags = 0
 		
 		*ReturnedValue\Buffer = AllocateMemory(InitialSize)
@@ -60,10 +65,15 @@ EndProcedure
 ;  be grown or freed by this include, and the caller must free it themselves.
 ; If `GiveOwnership` is `#True`, `*Buffer` MUST come from `AllocateMemory()`, since it
 ;  may be reallocated when growing, and it can be freed through `MsgPackFree()`.
-Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False)
+Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False, GrowthIncrement.i = 1)
 	Protected *ReturnedValue.MsgPackData = #Null
-	
+
 	If *Buffer = #Null Or BufferSize <= 0
+		ProcedureReturn #Null
+	EndIf
+
+	If GrowthIncrement <= 0
+		DebuggerWarning("Returning #Null, growth increment was zero or negative")
 		ProcedureReturn #Null
 	EndIf
 	
@@ -74,7 +84,7 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False
 	
 	*ReturnedValue\BufferOffset = 0
 	*ReturnedValue\BufferSize = BufferSize
-	*ReturnedValue\BufferGrowthIncrement = 0
+	*ReturnedValue\BufferGrowthIncrement = GrowthIncrement
 	*ReturnedValue\DataFlags = 0
 	*ReturnedValue\Buffer = *Buffer
 
