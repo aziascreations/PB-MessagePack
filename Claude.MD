@@ -167,6 +167,32 @@ Supported encodings: `#PB_UTF8` (default, per spec), `#PB_Ascii`, `#PB_Unicode` 
   See: `MsgPackLastError`
 
 
+### Extensions
+`ExtType.b` is the signed ext type, `-128` to `-1` being reserved by the spec but not rejected. \
+Size errors reuse the `#MsgPack_Error_BinaryDataSize*` codes.
+
+* `MsgPackWriteExtension.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer, BufferSize.q)` \
+  Writes `BufferSize` bytes from `*Buffer` using fixext for 1/2/4/8/16 bytes, or the smallest ext format code otherwise. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteExt8/16/32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteExtension`, but forces the given format code, even if a smaller one fits.
+
+* `MsgPackWriteFixExt1/2/4/8/16.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer)` \
+  Writes the 1/2/4/8/16 bytes at `*Buffer` as the given fixext.
+
+* `MsgPackGetExtensionType.b(*MsgPackData.MsgPackData)` \
+  Returns the type of the ext field at the current internal offset, without moving it. \
+  Returns `0` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+* `MsgPackReadExtension.q(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)` \
+  Same as `MsgPackReadBinary`, for the data of ext fields.
+
+* `MsgPackCopyExtension.i(*MsgPackData.MsgPackData)` \
+  Same as `MsgPackCopyBinary`, for the data of ext fields.
+
+
 ## Remarks
 * Never touch the `MsgPackData` structure unless you **absolutely** have to.
 

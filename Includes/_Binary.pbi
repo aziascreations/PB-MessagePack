@@ -21,12 +21,14 @@
 ; Sizes are all unsigned 8/16/32, using Q fixes any potential issues !
 
 ; The "sized field" helpers below handle every `[FormatCode][Size][Data]` layout
-;  shared by the str and bin families.
+;  shared by the str, bin and ext families.
 ; The `SizeFieldByteLength` parameter is the number of bytes used to store the size:
 ;  * `0` - Size is stored in the format code's lower 5 bits. (FixStr)
-;  * `1` - Str8, Bin8
-;  * `2` - Str16, Bin16
-;  * `4` - Str32, Bin32
+;          Or implied by the format code. (FixExt1/2/4/8/16)
+;  * `1` - Str8, Bin8, Ext8
+;  * `2` - Str16, Bin16, Ext16
+;  * `4` - Str32, Bin32, Ext32
+; The ext family also has a 1 byte type between its size and its data.
 
 
 
@@ -51,9 +53,11 @@ XIncludeFile "./_Primitives.pbi"
 
 ; Validates `DataSize`, reserves space for the whole field, writes its format code
 ;  and size, and moves the offset right after them.
-; The caller is expected to write `DataSize` bytes of data and move the offset afterward.
+; `ExtraHeaderSize` more bytes are reserved right after the size, for the ext type.
+; The caller is expected to write the extra header bytes and `DataSize` bytes of data,
+;  and move the offset afterward.
 ; Sets the structure's error code and returns it.
-Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, SizeFieldByteLength.a, DataSize.q)
+Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, SizeFieldByteLength.a, DataSize.q, ExtraHeaderSize.a = 0)
 	Protected MaxDataSize.q
 	Protected ErrorCode.MsgPack_ErrorCode
 
@@ -89,7 +93,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackDa
 		ProcedureReturn #MsgPack_Error_BinaryDataSizeIsTooBig
 	EndIf
 
-	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 1 + SizeFieldByteLength + DataSize)
+	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 1 + SizeFieldByteLength + ExtraHeaderSize + DataSize)
 	If ErrorCode <> #MsgPack_Error_Success
 		ProcedureReturn ErrorCode
 	EndIf
@@ -132,14 +136,17 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedField(*MsgPackData.MsgPackData, Fo
 EndProcedure
 
 
-; Reads the header of a str or bin field at the current offset, without moving it.
-; `ExpectedDataType` must be `#MsgPack_DataTypes_String` or `#MsgPack_DataTypes_Binary`.
-; On success, `*HeaderSize` receives the format code + size field length, and `*DataSize`
-;  the data's length, both guaranteed to be within the buffer.
+; Reads the header of a str, bin or ext field at the current offset, without moving it.
+; `ExpectedDataType` must be `#MsgPack_DataTypes_String`, `#MsgPack_DataTypes_Binary`
+;  or `#MsgPack_DataTypes_Extension`.
+; On success, `*HeaderSize` receives the format code + size field (+ ext type) length,
+;  and `*DataSize` the data's length, both guaranteed to be within the buffer.
+; For ext fields, the type is the header's last byte.
 ; Sets the structure's error code and returns it.
 Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackData, ExpectedDataType.MsgPack_DataType, *HeaderSize.Integer, *DataSize.Quad)
 	Protected FormatCode.MsgPack_FormatCode
 	Protected SizeFieldByteLength.a
+	Protected ExtTypeByteLength.a = 0
 	Protected DataSize.q
 
 	CompilerIf Not #MsgPack_DisableNullChecks
@@ -166,17 +173,34 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 		Case #MsgPack_FormatCode_FixStr:
 			SizeFieldByteLength = 0
 		Case #MsgPack_FormatCode_Str8,
-		     #MsgPack_FormatCode_Bin8:
+		     #MsgPack_FormatCode_Bin8,
+		     #MsgPack_FormatCode_Ext8:
 			 SizeFieldByteLength = 1
 		Case #MsgPack_FormatCode_Str16,
-		     #MsgPack_FormatCode_Bin16:
+		     #MsgPack_FormatCode_Bin16,
+		     #MsgPack_FormatCode_Ext16:
 			 SizeFieldByteLength = 2
 		Case #MsgPack_FormatCode_Str32,
-		     #MsgPack_FormatCode_Bin32:
+		     #MsgPack_FormatCode_Bin32,
+		     #MsgPack_FormatCode_Ext32:
 			 SizeFieldByteLength = 4
+		Case #MsgPack_FormatCode_FixExt1:
+			SizeFieldByteLength = 0 : DataSize = 1
+		Case #MsgPack_FormatCode_FixExt2:
+			SizeFieldByteLength = 0 : DataSize = 2
+		Case #MsgPack_FormatCode_FixExt4:
+			SizeFieldByteLength = 0 : DataSize = 4
+		Case #MsgPack_FormatCode_FixExt8:
+			SizeFieldByteLength = 0 : DataSize = 8
+		Case #MsgPack_FormatCode_FixExt16:
+			SizeFieldByteLength = 0 : DataSize = 16
 	EndSelect
 
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + SizeFieldByteLength)
+	If ExpectedDataType = #MsgPack_DataTypes_Extension
+		ExtTypeByteLength = 1
+	EndIf
+
+	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + SizeFieldByteLength + ExtTypeByteLength)
 		Debug("End of buffer reached, cannot read the field's size !")
 		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
 		ProcedureReturn #MsgPack_Error_BufferTooSmall
@@ -184,7 +208,10 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 
 	Select SizeFieldByteLength
 		Case 0:
-			DataSize = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) & %00011111
+			; FixExt sizes were already set above.
+			If FormatCode = #MsgPack_FormatCode_FixStr
+				DataSize = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) & %00011111
+			EndIf
 		Case 1:
 			DataSize = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 		Case 2:
@@ -193,13 +220,13 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 			DataSize = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
 	EndSelect
 
-	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + SizeFieldByteLength + DataSize)
+	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + SizeFieldByteLength + ExtTypeByteLength + DataSize)
 		Debug("End of buffer reached, cannot read the field's data !")
 		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
 		ProcedureReturn #MsgPack_Error_BufferTooSmall
 	EndIf
 
-	*HeaderSize\i = 1 + SizeFieldByteLength
+	*HeaderSize\i = 1 + SizeFieldByteLength + ExtTypeByteLength
 	*DataSize\q = DataSize
 
 	*MsgPackData\LastError = #MsgPack_Error_Success
@@ -207,18 +234,15 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 EndProcedure
 
 
-
-;-> Getters
-
-; Copies the bin field at the current offset into `*OutputBuffer`.
+; Copies the data of the bin or ext field at the current offset into `*OutputBuffer`.
 ; Returns: The number of bytes copied.
 ; OnError: Returns `#MsgPack_InvalidSize` and sets the `MsgPackData\LastError` field.
 ;          The offset is left untouched, so a bigger buffer can be given afterward.
-Procedure.q MsgPackReadBinary(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)
+Procedure.q _MsgPackReadSizedFieldData(*MsgPackData.MsgPackData, ExpectedDataType.MsgPack_DataType, *OutputBuffer, OutputBufferSize.q)
 	Protected HeaderSize.i
 	Protected DataSize.q
-	
-	If _MsgPackReadSizedFieldHeader(*MsgPackData, #MsgPack_DataTypes_Binary, @HeaderSize, @DataSize) <> #MsgPack_Error_Success
+
+	If _MsgPackReadSizedFieldHeader(*MsgPackData, ExpectedDataType, @HeaderSize, @DataSize) <> #MsgPack_Error_Success
 		ProcedureReturn #MsgPack_InvalidSize
 	EndIf
 	
@@ -246,24 +270,24 @@ Procedure.q MsgPackReadBinary(*MsgPackData.MsgPackData, *OutputBuffer, OutputBuf
 EndProcedure
 
 
-; Copies the bin field at the current offset into a new buffer.
+; Copies the data of the bin or ext field at the current offset into a new buffer.
 ; Returns: A buffer from `AllocateMemory()` that the caller must free with `FreeMemory()`.
 ;          Its size can be obtained with `MemorySize()`.
-;          Empty bin fields return `#Null` with `MsgPackData\LastError` set to `#MsgPack_Error_Success`.
+;          Empty fields return `#Null` with `MsgPackData\LastError` set to `#MsgPack_Error_Success`.
 ; OnError: Returns `#Null` and sets the `MsgPackData\LastError` field.
-Procedure.i MsgPackCopyBinary(*MsgPackData.MsgPackData)
+Procedure.i _MsgPackCopySizedFieldData(*MsgPackData.MsgPackData, ExpectedDataType.MsgPack_DataType)
 	Protected HeaderSize.i
 	Protected DataSize.q
 	Protected *ReturnedValue = #Null
-	
-	If _MsgPackReadSizedFieldHeader(*MsgPackData, #MsgPack_DataTypes_Binary, @HeaderSize, @DataSize) <> #MsgPack_Error_Success
+
+	If _MsgPackReadSizedFieldHeader(*MsgPackData, ExpectedDataType, @HeaderSize, @DataSize) <> #MsgPack_Error_Success
 		ProcedureReturn #Null
 	EndIf
 	
 	If DataSize > 0
 		*ReturnedValue = AllocateMemory(DataSize, #PB_Memory_NoClear)
 		If Not *ReturnedValue
-			Debug("Failed to allocate memory for the copied binary !")
+			Debug("Failed to allocate memory for the copied data !")
 			*MsgPackData\LastError = #MsgPack_Error_FailedToAllocateBuffer
 			ProcedureReturn #Null
 		EndIf
@@ -274,6 +298,28 @@ Procedure.i MsgPackCopyBinary(*MsgPackData.MsgPackData)
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
 	
 	ProcedureReturn *ReturnedValue
+EndProcedure
+
+
+
+;-> Getters
+
+; Copies the bin field at the current offset into `*OutputBuffer`.
+; Returns: The number of bytes copied.
+; OnError: Returns `#MsgPack_InvalidSize` and sets the `MsgPackData\LastError` field.
+;          The offset is left untouched, so a bigger buffer can be given afterward.
+Procedure.q MsgPackReadBinary(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)
+	ProcedureReturn _MsgPackReadSizedFieldData(*MsgPackData, #MsgPack_DataTypes_Binary, *OutputBuffer, OutputBufferSize)
+EndProcedure
+
+
+; Copies the bin field at the current offset into a new buffer.
+; Returns: A buffer from `AllocateMemory()` that the caller must free with `FreeMemory()`.
+;          Its size can be obtained with `MemorySize()`.
+;          Empty bin fields return `#Null` with `MsgPackData\LastError` set to `#MsgPack_Error_Success`.
+; OnError: Returns `#Null` and sets the `MsgPackData\LastError` field.
+Procedure.i MsgPackCopyBinary(*MsgPackData.MsgPackData)
+	ProcedureReturn _MsgPackCopySizedFieldData(*MsgPackData, #MsgPack_DataTypes_Binary)
 EndProcedure
 
 
