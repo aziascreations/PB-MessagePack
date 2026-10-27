@@ -131,6 +131,32 @@ PureBasic include for creating/reading MessagePack data.
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
 
 
+### Integers & Floats
+* `MsgPackWriteInteger.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Value.q)` \
+  Writes `Value` using the smallest int format code that fits, fixints included. \
+  Positive values always use the unsigned format codes. \
+  UInt64 values above `(2^63)-1` must be written with `MsgPackWriteUInt64`.
+
+* `MsgPackWriteFixInt.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Value.q)` \
+  Writes `Value` as a fixint, from `-32` to `127`. \
+  Returns `#MsgPack_Error_ValueOverflow` if it doesn't fit.
+
+* `MsgPackWrite/Read[U]Int8/16/32/64`, `MsgPackWrite/ReadFloat32/64` \
+  Force the given format code. Aliases: `MsgPackWrite/ReadU8`, `I8`, ..., `F64`. \
+  `UInt32` and `UInt64` use `.l` and `.q`, so their values above the signed max come back negative.
+
+* `MsgPackReadInteger.q(*MsgPackData.MsgPackData)` \
+  Reads any int field at the current internal offset, fixints included. \
+  Returns `0` on errors and sets the internal error code. \
+  UInt64 values above `(2^63)-1` fail with `#MsgPack_Error_ValueOverflow` without moving the offset, so they can be read with `MsgPackReadUInt64`. \
+  See: `MsgPackLastError`
+
+* `MsgPackReadFloat.d(*MsgPackData.MsgPackData)` \
+  Reads any float field at the current internal offset. \
+  Returns `0` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+
 ### Binary
 * `MsgPackWriteBinary.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
   Writes `BufferSize` bytes from `*Buffer` using the smallest bin format code that fits. \
