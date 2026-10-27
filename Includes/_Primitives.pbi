@@ -37,6 +37,7 @@ XIncludeFile "./_Allocators.pbi"
 ; Ensures `Size` bytes can be written at the current offset, growing the buffer by
 ;  exactly the missing amount if needed.
 ; Sets the structure's error code and returns it.
+; FIXME: Move elsewhere since it's used in multiple places !
 Procedure.MsgPack_ErrorCode _MsgPackReserveWrite(*MsgPackData.MsgPackData, Size.i)
 	Protected MissingSize.i
 	

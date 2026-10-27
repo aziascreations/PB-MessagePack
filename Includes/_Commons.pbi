@@ -146,10 +146,16 @@ Enumeration _MsgPack_ErrorCodes
 	#MsgPack_Error_AtOrPastTheEndOfBuffer = 11
 	#MsgPack_Error_ReadPastEndOfBuffer = 12
 	#MsgPack_Error_InvalidFormatCode = 13
+	#MsgPack_Error_FailedToAllocateBuffer = 14
 
 	; 5x - Binary
 	#MsgPack_Error_BinaryDataSizeIsNegative = 50
 	#MsgPack_Error_BinaryDataSizeIsTooBig   = 51
+	#MsgPack_Error_OutputBufferTooSmall     = 52
+
+	; 6x - Strings
+	#MsgPack_Error_UnsupportedStringEncoding = 60
+	#MsgPack_Error_InvalidStringSize = 61
 
 
 	#MsgPack_Error_CannotGrowBufferDueToConfig = 100

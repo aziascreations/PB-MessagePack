@@ -80,8 +80,12 @@ PureBasic include for creating/reading MessagePack data.
   * `#MsgPack_Error_AtOrPastTheEndOfBuffer`
   * `#MsgPack_Error_ReadPastEndOfBuffer`
   * `#MsgPack_Error_InvalidFormatCode`
+  * `#MsgPack_Error_FailedToAllocateBuffer`
   * `#MsgPack_Error_BinaryDataSizeIsNegative`
   * `#MsgPack_Error_BinaryDataSizeIsTooBig`
+  * `#MsgPack_Error_OutputBufferTooSmall`
+  * `#MsgPack_Error_UnsupportedStringEncoding`
+  * `#MsgPack_Error_InvalidStringSize`
   * `#MsgPack_Error_CannotGrowBufferDueToConfig`
 
 * `.MsgPack_DataFlag` \
@@ -125,6 +129,42 @@ PureBasic include for creating/reading MessagePack data.
 * `MsgPackWriteFalse.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
   Attempts to write `#False` at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+
+### Binary
+* `MsgPackWriteBinary.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Writes `BufferSize` bytes from `*Buffer` using the smallest bin format code that fits. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteBin8/16/32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteBinary`, but forces the given format code, even if a smaller one fits.
+
+* `MsgPackReadBinary.q(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)` \
+  Copies the bin field at the current internal offset into `*OutputBuffer`. \
+  Returns the number of bytes copied, or `#MsgPack_InvalidSize` on errors. \
+  The offset isn't moved on errors, so it can be retried with a bigger buffer. \
+  See: `MsgPackLastError`
+
+* `MsgPackCopyBinary.i(*MsgPackData.MsgPackData)` \
+  Copies the bin field at the current internal offset into a new buffer that must be freed with `FreeMemory()`. \
+  Returns `#Null` on errors, or for empty bin fields with `#MsgPack_Error_Success` as the last error. \
+  See: `MsgPackLastError`
+
+
+### Strings
+Supported encodings: `#PB_UTF8` (default, per spec), `#PB_Ascii`, `#PB_Unicode` (UTF-16 LE).
+
+* `MsgPackWriteString.MsgPack_ErrorCode(*MsgPackData.MsgPackData, String.s, Encoding.i = #PB_UTF8)` \
+  Writes `String` using the smallest str format code that fits its encoded byte size. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteFixStr/Str8/Str16/Str32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, String.s, Encoding.i = #PB_UTF8)` \
+  Same as `MsgPackWriteString`, but forces the given format code.
+
+* `MsgPackReadString.s(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)` \
+  Reads any str field at the current internal offset. \
+  Returns `""` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
 
 
 ## Remarks
