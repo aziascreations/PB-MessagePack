@@ -122,6 +122,15 @@ EndProcedure
 Procedure.MsgPack_ErrorCode _MsgPackWriteSizedField(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, SizeFieldByteLength.a, *Data, DataSize.q)
 	Protected ErrorCode.MsgPack_ErrorCode
 
+	CompilerIf Not #MsgPack_DisableNullChecks
+		; Checked before the header is written, so nothing is left half-written.
+		If *MsgPackData And DataSize > 0 And Not *Data
+			DebuggerError("A #Null data buffer was passed !")
+			*MsgPackData\LastError = #MsgPack_Error_NullPointerGiven
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
+		EndIf
+	CompilerEndIf
+
 	ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize)
 	If ErrorCode <> #MsgPack_Error_Success
 		ProcedureReturn ErrorCode

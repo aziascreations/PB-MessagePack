@@ -51,7 +51,7 @@ Macro _MsgPackGetFieldDynamicSize_Within(MsgPackData, Mask) : (PeekA(MsgPackData
 ; Applies to: Str8, Bin8, Ext8
 ;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
 Procedure.q _MsgPackGetFieldDynamicSize_1After(*MsgPackData.MsgPackData)
-    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 1)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + 1)
         DebuggerWarning("We have less than 1 byte to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
@@ -63,7 +63,7 @@ EndProcedure
 ; Applies to: Str16, Bin16, Ext16, Array16, Map16
 ;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
 Procedure.q _MsgPackGetFieldDynamicSize_2After(*MsgPackData.MsgPackData)
-    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 2)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + 2)
         DebuggerWarning("We have less than 2 bytes to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
@@ -75,12 +75,12 @@ EndProcedure
 ; Applies to: Str32, Bin32, Ext32, Array32, Map32
 ;     Remark: Doesn't apply to Int/UInt variants since those have their own function for extracting the value.
 Procedure.q _MsgPackGetFieldDynamicSize_4After(*MsgPackData.MsgPackData)
-    If Not _MsgPackHasSpaceLeft(*MsgPackData, *MsgPackData\BufferSize + 4)
+    If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + 4)
         DebuggerWarning("We have less than 4 bytes to read the field's dynamic size !")
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
 
-    ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+    ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
 EndProcedure
 
 ; Returns a given format code's spacing info based on itself and the data in the given MsgPack buffer.
@@ -96,6 +96,12 @@ Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType
     
     If *MsgPackData = #Null Or (*VariableSizeQ = #Null And *ValueStartOffsetB = #Null)
         ProcedureReturn #False
+    EndIf
+    
+    ; The "within" sizes are read from the format code, which must be in the buffer.
+    If _MsgPackIsAtTheEnd(*MsgPackData)
+        DebuggerWarning("End of buffer reached, cannot read the field's dynamic size !")
+        ExaminedDataType = #MsgPack_FormatCode_Invalid
     EndIf
     
     Select ExaminedDataType

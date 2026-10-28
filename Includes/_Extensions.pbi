@@ -58,6 +58,13 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 			DebuggerError("A #Null MsgPackData pointer was passed !")
 			ProcedureReturn #MsgPack_Error_NullPointerGiven
 		EndIf
+
+		; Checked before the header is written, so nothing is left half-written.
+		If DataSize > 0 And Not *Data
+			DebuggerError("A #Null data buffer was passed !")
+			*MsgPackData\LastError = #MsgPack_Error_NullPointerGiven
+			ProcedureReturn #MsgPack_Error_NullPointerGiven
+		EndIf
 	CompilerEndIf
 
 	If SizeFieldByteLength = 0

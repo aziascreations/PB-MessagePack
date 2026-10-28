@@ -39,16 +39,24 @@ XIncludeFile "./_Utils.pbi"
 ;  exactly the missing amount if needed.
 ; Sets the structure's error code and returns it.
 ; FIXME: Move elsewhere since it's used in multiple places !
-Procedure.MsgPack_ErrorCode _MsgPackReserveWrite(*MsgPackData.MsgPackData, Size.i)
-	Protected MissingSize.i
-	
+Procedure.MsgPack_ErrorCode _MsgPackReserveWrite(*MsgPackData.MsgPackData, Size.q)
+	Protected MissingSize.q
+
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
 			ProcedureReturn #MsgPack_Error_NullPointerGiven
 		EndIf
 	CompilerEndIf
-	
+
+	; `Size` is a quad so sized fields up to 4 GiB can't be truncated, but the end
+	;  offset must still fit in a `.i`, which isn't the case on x86 past 2 GiB.
+	If Size < 0 Or Size > #_MsgPack_MaxIntegerValue - *MsgPackData\BufferOffset
+		DebuggerWarning("Requested size can't be addressed: " + Str(Size))
+		*MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
+		ProcedureReturn #MsgPack_Error_BinaryDataSizeIsTooBig
+	EndIf
+
 	MissingSize = (*MsgPackData\BufferOffset + Size) - *MsgPackData\BufferSize
 	If MissingSize > 0
 		; The structure's error code field is set by the called function !

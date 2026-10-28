@@ -39,6 +39,8 @@ PokeA(*MyBuffer + 1, $C1) ; Invalid
 *MsgPack = MsgPackWrapMsgBuffer(*MyBuffer, MemorySize(*MyBuffer))
 
 AssertEqualsA(*MsgPack\BufferOffset, 0, "[False] Offset is 0")
+AssertIsTrue(Bool(_MsgPackHasFlag(*MsgPack, #MsgPack_DataFlags_MoveOffsetAfterRead)), "[False] Move after read flag is set by default")
+*MsgPack\DataFlags = *MsgPack\DataFlags & (~#MsgPack_DataFlags_MoveOffsetAfterRead)
 AssertEqualsA(MsgPackGetFormatCode(*MsgPack), #MsgPack_FormatCode_False, "[False] First format code is false")
 AssertEqualsA(MsgPackReadBoolean(*MsgPack), #False, "[False] Boolean literal getter returns #False")
 AssertEqualsA(*MsgPack\BufferOffset, 0, "[False] Offset is still 0, we'll change the flag")
@@ -63,6 +65,8 @@ PokeA(*MyBuffer + 1, $C1) ; Invalid
 *MsgPack = MsgPackWrapMsgBuffer(*MyBuffer, MemorySize(*MyBuffer))
 
 AssertEqualsA(*MsgPack\BufferOffset, 0, "[True] Offset is 0")
+AssertIsTrue(Bool(_MsgPackHasFlag(*MsgPack, #MsgPack_DataFlags_MoveOffsetAfterRead)), "[True] Move after read flag is set by default")
+*MsgPack\DataFlags = *MsgPack\DataFlags & (~#MsgPack_DataFlags_MoveOffsetAfterRead)
 AssertEqualsA(MsgPackGetFormatCode(*MsgPack), #MsgPack_FormatCode_True, "[True] First format code is false")
 AssertEqualsA(MsgPackReadBoolean(*MsgPack), #True, "[True] Boolean literal getter returns #True")
 AssertEqualsA(*MsgPack\BufferOffset, 0, "[True] Offset is still 0, we'll change the flag")
