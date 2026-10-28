@@ -51,6 +51,12 @@ CompilerEndIf
 ; Used to represent any size that couldn't be calculated/derived/...
 #MsgPack_InvalidSize = -1
 
+; Biggest value a `.i` can hold, used to reject sizes that would be truncated on x86.
+CompilerIf #PB_Compiler_Processor = #PB_Processor_x86
+	#_MsgPack_MaxIntegerValue = $7FFFFFFF
+CompilerElse
+	#_MsgPack_MaxIntegerValue = $7FFFFFFFFFFFFFFF
+CompilerEndIf
 
 
 ; ------------------------------------------------------------------------------
@@ -146,10 +152,16 @@ Enumeration _MsgPack_ErrorCodes
 	#MsgPack_Error_AtOrPastTheEndOfBuffer = 11
 	#MsgPack_Error_ReadPastEndOfBuffer = 12
 	#MsgPack_Error_InvalidFormatCode = 13
+	#MsgPack_Error_FailedToAllocateBuffer = 14
 
 	; 5x - Binary
 	#MsgPack_Error_BinaryDataSizeIsNegative = 50
 	#MsgPack_Error_BinaryDataSizeIsTooBig   = 51
+	#MsgPack_Error_OutputBufferTooSmall     = 52
+
+	; 6x - Strings
+	#MsgPack_Error_UnsupportedStringEncoding = 60
+	#MsgPack_Error_InvalidStringSize = 61
 
 
 	#MsgPack_Error_CannotGrowBufferDueToConfig = 100
@@ -181,6 +193,9 @@ EnumerationBinary _MsgPack_DataFlags
 	#MsgPack_DataFlags_CanProvideKeys = %0000000001000000
 	#MsgPack_DataFlags_CanProvideVals = %0000000010000000
 EndEnumeration
+
+; Flags set on every new `MsgPackData`, so all reads and writes move the offset.
+#_MsgPack_DefaultDataFlags = #MsgPack_DataFlags_MoveOffsetAfterRead | #MsgPack_DataFlags_MoveOffsetAfterWrite
 
 EnumerationBinary _MsgPack_ExaminationOptions
 	; If set, we don't seek the end of the examined map/array.

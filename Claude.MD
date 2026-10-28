@@ -80,8 +80,12 @@ PureBasic include for creating/reading MessagePack data.
   * `#MsgPack_Error_AtOrPastTheEndOfBuffer`
   * `#MsgPack_Error_ReadPastEndOfBuffer`
   * `#MsgPack_Error_InvalidFormatCode`
+  * `#MsgPack_Error_FailedToAllocateBuffer`
   * `#MsgPack_Error_BinaryDataSizeIsNegative`
   * `#MsgPack_Error_BinaryDataSizeIsTooBig`
+  * `#MsgPack_Error_OutputBufferTooSmall`
+  * `#MsgPack_Error_UnsupportedStringEncoding`
+  * `#MsgPack_Error_InvalidStringSize`
   * `#MsgPack_Error_CannotGrowBufferDueToConfig`
 
 * `.MsgPack_DataFlag` \
@@ -125,6 +129,94 @@ PureBasic include for creating/reading MessagePack data.
 * `MsgPackWriteFalse.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
   Attempts to write `#False` at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+
+### Integers & Floats
+* `MsgPackWriteInteger.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Value.q)` \
+  Writes `Value` using the smallest int format code that fits, fixints included. \
+  Positive values always use the unsigned format codes. \
+  UInt64 values above `(2^63)-1` must be written with `MsgPackWriteUInt64`.
+
+* `MsgPackWriteFixInt.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Value.q)` \
+  Writes `Value` as a fixint, from `-32` to `127`. \
+  Returns `#MsgPack_Error_ValueOverflow` if it doesn't fit.
+
+* `MsgPackWrite/Read[U]Int8/16/32/64`, `MsgPackWrite/ReadFloat32/64` \
+  Force the given format code. Aliases: `MsgPackWrite/ReadU8`, `I8`, ..., `F64`. \
+  `UInt32` and `UInt64` use `.l` and `.q`, so their values above the signed max come back negative.
+
+* `MsgPackReadInteger.q(*MsgPackData.MsgPackData)` \
+  Reads any int field at the current internal offset, fixints included. \
+  Returns `0` on errors and sets the internal error code. \
+  UInt64 values above `(2^63)-1` fail with `#MsgPack_Error_ValueOverflow` without moving the offset, so they can be read with `MsgPackReadUInt64`. \
+  See: `MsgPackLastError`
+
+* `MsgPackReadFloat.d(*MsgPackData.MsgPackData)` \
+  Reads any float field at the current internal offset. \
+  Returns `0` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+
+### Binary
+* `MsgPackWriteBinary.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Writes `BufferSize` bytes from `*Buffer` using the smallest bin format code that fits. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteBin8/16/32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteBinary`, but forces the given format code, even if a smaller one fits.
+
+* `MsgPackReadBinary.q(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)` \
+  Copies the bin field at the current internal offset into `*OutputBuffer`. \
+  Returns the number of bytes copied, or `#MsgPack_InvalidSize` on errors. \
+  The offset isn't moved on errors, so it can be retried with a bigger buffer. \
+  See: `MsgPackLastError`
+
+* `MsgPackCopyBinary.i(*MsgPackData.MsgPackData)` \
+  Copies the bin field at the current internal offset into a new buffer that must be freed with `FreeMemory()`. \
+  Returns `#Null` on errors, or for empty bin fields with `#MsgPack_Error_Success` as the last error. \
+  See: `MsgPackLastError`
+
+
+### Strings
+Supported encodings: `#PB_UTF8` (default, per spec), `#PB_Ascii`, `#PB_Unicode` (UTF-16 LE).
+
+* `MsgPackWriteString.MsgPack_ErrorCode(*MsgPackData.MsgPackData, String.s, Encoding.i = #PB_UTF8)` \
+  Writes `String` using the smallest str format code that fits its encoded byte size. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteFixStr/Str8/Str16/Str32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, String.s, Encoding.i = #PB_UTF8)` \
+  Same as `MsgPackWriteString`, but forces the given format code.
+
+* `MsgPackReadString.s(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)` \
+  Reads any str field at the current internal offset. \
+  Returns `""` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+
+### Extensions
+`ExtType.b` is the signed ext type, `-128` to `-1` being reserved by the spec but not rejected. \
+Size errors reuse the `#MsgPack_Error_BinaryDataSize*` codes.
+
+* `MsgPackWriteExtension.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer, BufferSize.q)` \
+  Writes `BufferSize` bytes from `*Buffer` using fixext for 1/2/4/8/16 bytes, or the smallest ext format code otherwise. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteExt8/16/32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteExtension`, but forces the given format code, even if a smaller one fits.
+
+* `MsgPackWriteFixExt1/2/4/8/16.MsgPack_ErrorCode(*MsgPackData.MsgPackData, ExtType.b, *Buffer)` \
+  Writes the 1/2/4/8/16 bytes at `*Buffer` as the given fixext.
+
+* `MsgPackGetExtensionType.b(*MsgPackData.MsgPackData)` \
+  Returns the type of the ext field at the current internal offset, without moving it. \
+  Returns `0` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+* `MsgPackReadExtension.q(*MsgPackData.MsgPackData, *OutputBuffer, OutputBufferSize.q)` \
+  Same as `MsgPackReadBinary`, for the data of ext fields.
+
+* `MsgPackCopyExtension.i(*MsgPackData.MsgPackData)` \
+  Same as `MsgPackCopyBinary`, for the data of ext fields.
 
 
 ## Remarks

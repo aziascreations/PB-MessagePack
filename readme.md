@@ -5,19 +5,23 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
 
 
 ## Features
-* Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification
-* Explicit or implicit [typing]
-  * [the autotyping over which other libs sometimes give no control]
-* ???
+* ~~Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification~~
+  * **Still missing Map and Array**
+* Explicit or implicit data formats when reading/writing
+  * *ReadInteger vs ReadI8/ReadU8/...*
+* ~~Fully documented~~
 
 
 ## Limitations
-* Usage of larger `.q` type for field sizes
-  * *Helps prevent unsigned numbers being passed around carelessly*
+* No custom `malloc`/`realloc`/`free` callbacks
 * More involved Map and Array parsing
   * *No dynamic typing*
-* No custom `malloc`/`realloc`/`free` callbacks
-* ???
+* Usage of larger `.q` type for field sizes
+  * *Helps prevent unsigned numbers causing issues on x86*
+* Particular handling of `NaN` for *Float32* and *Float64*
+  * `0x7F800001` gets returned as `0x7FC00001` (x87 FPU limitation)
+  * **ARM64 untested yet**
+* No implementation of the *Timestamp* extension
 
 
 ## Usage

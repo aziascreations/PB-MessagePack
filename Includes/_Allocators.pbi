@@ -47,8 +47,8 @@ Procedure.i MsgPackCreate(InitialSize.i, GrowthIncrement.i = 1)
 		*ReturnedValue\BufferOffset = 0
 		*ReturnedValue\BufferSize = InitialSize
 		*ReturnedValue\BufferGrowthIncrement = GrowthIncrement
-		*ReturnedValue\DataFlags = 0
-		
+		*ReturnedValue\DataFlags = #_MsgPack_DefaultDataFlags
+
 		*ReturnedValue\Buffer = AllocateMemory(InitialSize)
 		If Not *ReturnedValue\Buffer
 			Debug("Failed to allocate memory for buffer !")
@@ -85,11 +85,11 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False
 	*ReturnedValue\BufferOffset = 0
 	*ReturnedValue\BufferSize = BufferSize
 	*ReturnedValue\BufferGrowthIncrement = GrowthIncrement
-	*ReturnedValue\DataFlags = 0
+	*ReturnedValue\DataFlags = #_MsgPack_DefaultDataFlags
 	*ReturnedValue\Buffer = *Buffer
 
 	If Not GiveOwnership
-		*ReturnedValue\DataFlags = #MsgPack_DataFlags_CannotGrow | #MsgPack_DataFlags_NoBufferFree
+		*ReturnedValue\DataFlags = *ReturnedValue\DataFlags | #MsgPack_DataFlags_CannotGrow | #MsgPack_DataFlags_NoBufferFree
 	EndIf
 	
 	ProcedureReturn *ReturnedValue
@@ -146,7 +146,8 @@ Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeInc
 	EndIf
 
 	; `DesiredSizeIncrease` is positive, so a new size that isn't bigger can only come from an overflow.
-	If NewSize <= *MsgPackData\BufferSize
+	; Sizes that don't fit in a `.i` would also be truncated by `ReAllocateMemory()` on x86.
+	If NewSize <= *MsgPackData\BufferSize Or NewSize > #_MsgPack_MaxIntegerValue
 		DebuggerError("We had an overflow in one of the growth values, the calculation is messed up !")
 		*MsgPackData\LastError = #MsgPack_Error_ValueOverflow
 		ProcedureReturn #MsgPack_Error_ValueOverflow
