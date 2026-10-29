@@ -113,6 +113,42 @@ Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b = #False)
 	ProcedureReturn #True
 EndProcedure
 
+; Frees a given internal structure and returns its buffer, shrunk to the number of bytes
+;  written so far (`BufferOffset`), whose size can be obtained with `MemorySize()`.
+; The caller takes ownership of the returned buffer and must free it with `FreeMemory()`.
+; Returns `#Null` on errors, in which case `*MsgPackData` and its buffer are left untouched.
+Procedure.i MsgPackFinalize(*MsgPackData.MsgPackData)
+	Protected *FinalBuffer
+
+	If Not *MsgPackData
+		DebuggerError("A #Null MsgPackData pointer was passed !")
+		ProcedureReturn #Null
+	EndIf
+
+	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_NoBufferFree)
+		DebuggerError("Cannot finalize a buffer that is still owned by the caller !")
+		*MsgPackData\LastError = #MsgPack_Error_InvalidValue
+		ProcedureReturn #Null
+	EndIf
+
+	If *MsgPackData\BufferOffset <= 0
+		DebuggerError("Cannot finalize an empty buffer !")
+		*MsgPackData\LastError = #MsgPack_Error_InvalidValue
+		ProcedureReturn #Null
+	EndIf
+
+	*FinalBuffer = ReAllocateMemory(*MsgPackData\Buffer, *MsgPackData\BufferOffset, #PB_Memory_NoClear)
+	If Not *FinalBuffer
+		Debug("Failed to shrink memory for buffer !")
+		*MsgPackData\LastError = #MsgPack_Error_FailedToGrowBuffer
+		ProcedureReturn #Null
+	EndIf
+
+	FreeStructure(*MsgPackData)
+
+	ProcedureReturn *FinalBuffer
+EndProcedure
+
 
 ; TODO: Add callback in the structure, maybe ?
 ; FIXME: Use a .q for the size !!!!

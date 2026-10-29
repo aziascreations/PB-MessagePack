@@ -110,6 +110,13 @@ PureBasic include for creating/reading MessagePack data.
   Frees a given internal structure `*MsgPackData` and its associated buffer if `FreeDataBuffer` is `#True`.
   Returns `#True` if freed properly, `#False` otherwise.
 
+* `MsgPackFinalize.i(*MsgPackData.MsgPackData)` \
+  Frees a given internal structure `*MsgPackData` and returns its buffer, shrunk to the number of bytes written. \
+  The caller takes ownership of the buffer, gets its size with `MemorySize()` and frees it with `FreeMemory()`. \
+  Fails if the buffer is owned by the caller or nothing was written. \
+  Returns `#Null` on errors and leaves `*MsgPackData` untouched. \
+  See: `MsgPackLastError`
+
 
 ### Literals
 * `MsgPackReadBoolean.b(*MsgPackData.MsgPackData)`
