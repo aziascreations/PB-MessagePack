@@ -28,9 +28,9 @@ Procedure TestValueMetaInfoWithin(CodeForBuffer.a, ExpectedVariableSize.q, Expec
 EndProcedure
 
 
-; Positive FixInt
-TestValueMetaInfoWithin($00, 0,   1, "FixInt with positive 0")   ; Value: 0   (0x00) | Offset: ???
-TestValueMetaInfoWithin($7F, 127, 0, "FixInt with positive 127") ; Value: 127 (0x7F) | Offset: ???
+; Positive FixInt, unsupported since `MsgPackReadInteger()` handles them
+TestValueMetaInfoWithin($00, #MsgPack_InvalidSize, #MsgPack_InvalidSize, "FixInt with positive 0")
+TestValueMetaInfoWithin($7F, #MsgPack_InvalidSize, #MsgPack_InvalidSize, "FixInt with positive 127")
 
 ; FixMap
 TestValueMetaInfoWithin($80, 0,  1, "FixMap with 0 elements")  ; Value: 0  (0x0) | Offset: 1
@@ -46,9 +46,9 @@ TestValueMetaInfoWithin($AF, 15, 1, "FixStr with 15 elements") ; Value: 15 (0x0F
 TestValueMetaInfoWithin($B0, 16, 1, "FixStr with 16 elements") ; Value: 16 (0x10) | Offset: 1
 TestValueMetaInfoWithin($BF, 31, 1, "FixStr with 31 elements") ; Value: 31 (0x1F) | Offset: 1
 
-; Negative FixInt
-TestValueMetaInfoWithin($E0, -0,  1, "FixInt with negative 0")  ; Value: 0  (0x00) | Offset: ???
-TestValueMetaInfoWithin($FF, -31, 0, "FixInt with negative 31") ; Value: 31 (0x7F) | Offset: ???
+; Negative FixInt, unsupported since `MsgPackReadInteger()` handles them
+TestValueMetaInfoWithin($E0, #MsgPack_InvalidSize, #MsgPack_InvalidSize, "FixInt with negative 32")
+TestValueMetaInfoWithin($FF, #MsgPack_InvalidSize, #MsgPack_InvalidSize, "FixInt with negative 1")
 
 
 

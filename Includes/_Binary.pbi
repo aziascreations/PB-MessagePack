@@ -140,6 +140,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedField(*MsgPackData.MsgPackData, Fo
 		CopyMemory(*Data, *MsgPackData\Buffer + *MsgPackData\BufferOffset, DataSize)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + DataSize
 	EndIf
+	_MsgPackRewindOffsetAfterWrite(*MsgPackData, 1 + SizeFieldByteLength + DataSize)
 
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
@@ -273,8 +274,8 @@ Procedure.q _MsgPackReadSizedFieldData(*MsgPackData.MsgPackData, ExpectedDataTyp
 		CopyMemory(*MsgPackData\Buffer + *MsgPackData\BufferOffset + HeaderSize, *OutputBuffer, DataSize)
 	EndIf
 	
-	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
-	
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, HeaderSize + DataSize)
+
 	ProcedureReturn DataSize
 EndProcedure
 
@@ -304,8 +305,8 @@ Procedure.i _MsgPackCopySizedFieldData(*MsgPackData.MsgPackData, ExpectedDataTyp
 		CopyMemory(*MsgPackData\Buffer + *MsgPackData\BufferOffset + HeaderSize, *ReturnedValue, DataSize)
 	EndIf
 	
-	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
-	
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, HeaderSize + DataSize)
+
 	ProcedureReturn *ReturnedValue
 EndProcedure
 

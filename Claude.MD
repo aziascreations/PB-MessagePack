@@ -10,7 +10,10 @@ PureBasic include for creating/reading MessagePack data.
 * ???
 * The internal offset is auto-incremented on all complete reads and writes.
   * Does not apply to `MsgPackGetFormatCode`.
+  * Can be disabled with the internal `#MsgPack_DataFlags_MoveOffsetAfterRead/Write` flags, honored by every read and write.
 * The internal buffer is automatically resized as needed.
+* Invalid or truncated data never raises a `DebuggerError`, only programming errors do. (e.g.: `#Null` pointers)
+* Views from `MsgPackExamine` are read-only, writes return `#MsgPack_Error_BufferIsReadOnly`.
 
 
 ### Type aliases/macros
@@ -86,7 +89,10 @@ PureBasic include for creating/reading MessagePack data.
   * `#MsgPack_Error_OutputBufferTooSmall`
   * `#MsgPack_Error_UnsupportedStringEncoding`
   * `#MsgPack_Error_InvalidStringSize`
+  * `#MsgPack_Error_TooManyEntries`
+  * `#MsgPack_Error_OddMapFieldCount`
   * `#MsgPack_Error_CannotGrowBufferDueToConfig`
+  * `#MsgPack_Error_BufferIsReadOnly`
 
 * `.MsgPack_DataFlag` \
   Internal flags, do not touch.
@@ -136,6 +142,14 @@ PureBasic include for creating/reading MessagePack data.
 * `MsgPackWriteFalse.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
   Attempts to write `#False` at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackWriteBoolean.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Boolean.b)`
+  Writes `#True` or `#False` depending on `Boolean`. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise.
+
+* `MsgPackReadNull.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
+  Attempts to read a nil at the current internal offset. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise, in which case the offset isn't moved.
 
 
 ### Integers & Floats
@@ -224,6 +238,81 @@ Size errors reuse the `#MsgPack_Error_BinaryDataSize*` codes.
 
 * `MsgPackCopyExtension.i(*MsgPackData.MsgPackData)` \
   Same as `MsgPackCopyBinary`, for the data of ext fields.
+
+
+### Navigation
+Arrays and maps are handled iteratively, so deep nesting can't overflow the stack.
+
+* `MsgPackGetFieldFullSize.q(*MsgPackData.MsgPackData)` \
+  Returns the full size in bytes of the field at the current internal offset, without moving it. \
+  Arrays and maps include all of their contained fields, recursively. \
+  Returns `#MsgPack_InvalidSize` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+
+* `MsgPackGetEntryCount.q(*MsgPackData.MsgPackData)` \
+  Returns the number of entries in the array or map at the current internal offset, without moving it. \
+  A map entry is a key and a value, and counts as one. \
+  Returns `#MsgPack_InvalidSize` on errors and sets the internal error code.
+
+* `MsgPackSkip.MsgPack_ErrorCode(*MsgPackData.MsgPackData, FieldCount.q = 1)` \
+  Moves the internal offset past the next `FieldCount` fields, the ones contained in arrays and maps included. \
+  Map keys and values count as separate fields. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise, in which case the offset isn't moved.
+
+
+### Arrays & Maps
+* `MsgPackExamine.i(*MsgPackData.MsgPackData, ExaminationOptions.MsgPack_ExaminationOption = 0)` \
+  Returns a view over the array or map at the current internal offset, to iterate on with `MsgPackNextEntry`. \
+  The view is a regular `MsgPackData` limited to the array/map's content, so all the regular read functions work on it, and can't read past it. \
+  It reads straight from `*MsgPackData`'s buffer, which must not be grown or freed while the view is used. \
+  The whole array/map is checked beforehand, and the offset of `*MsgPackData` is moved past it. \
+  Returns `#Null` on errors and sets the internal error code. \
+  See: `MsgPackLastError`
+  * `#MsgPack_ExaminationOptions_Unsafe` - **Not recommended !** \
+    Skips the content check, which is also what finds the array/map's end. \
+    The view can read past the array/map until `MsgPackNextEntry` reaches its end, invalid content is only
+    detected while iterating, and the offset of `*MsgPackData` isn't moved, use `MsgPackSkip` afterward.
+
+* `MsgPackNextEntry.b(*Iterator.MsgPackData)` \
+  Moves the view's offset to its next entry, the first one on the first call. \
+  Whatever wasn't read from the current entry is skipped, nested arrays/maps included. \
+  Map entries are read key first, then value. \
+  Returns `#True` if an entry is available, `#False` at the end or on errors, with the internal error code set accordingly.
+
+* `MsgPackFinish(*Iterator.MsgPackData)` \
+  Frees a view from `MsgPackExamine`, without touching the underlying buffer.
+
+```purebasic
+Define *Iterator.MsgPackData = MsgPackExamine(*MsgPack)
+If *Iterator
+	While MsgPackNextEntry(*Iterator)
+		Key.s = MsgPackReadString(*Iterator)
+		If MsgPackFormatCodeToDataType(MsgPackGetFormatCode(*Iterator)) = #MsgPack_DataTypes_Map
+			*Nested = MsgPackExamine(*Iterator) ; Or leave it, it'll be skipped
+			; ...
+			MsgPackFinish(*Nested)
+		EndIf
+	Wend
+	MsgPackFinish(*Iterator)
+EndIf
+```
+
+* `MsgPackWriteArray.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Writes an array whose entries are the fields in the `BufferSize` bytes of MessagePack data at `*Buffer`, using the smallest array format code that fits. \
+  The data is fully checked and its fields are counted, nested arrays/maps counting as one. \
+  `*Buffer` can come from `MsgPackFinalize`, with `MemorySize()` as its size, but not from `*MsgPackData`'s own buffer. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise, with nothing written.
+
+* `MsgPackWriteMap.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteArray`, for maps. \
+  The data must hold an even number of fields, alternating keys and values, or `#MsgPack_Error_OddMapFieldCount` is returned.
+
+* `MsgPackWriteArrayFrom/MapFrom.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Source.MsgPackData)` \
+  Same as `MsgPackWriteArray/Map`, with the data written so far in `*Source`, which is left untouched.
+
+* `MsgPackWriteFixArray/Array16/Array32/FixMap/Map16/Map32.MsgPack_ErrorCode(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)` \
+  Same as `MsgPackWriteArray/Map`, but forces the given format code. \
+  Returns `#MsgPack_Error_TooManyEntries` if the entries don't fit in it.
 
 
 ## Remarks

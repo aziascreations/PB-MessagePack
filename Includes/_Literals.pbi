@@ -25,6 +25,7 @@ CompilerEndIf
 
 XIncludeFile "./_Commons.pbi"
 XIncludeFile "./_Allocators.pbi"
+XIncludeFile "./_Primitives.pbi"
 
 
 
@@ -33,20 +34,25 @@ XIncludeFile "./_Allocators.pbi"
 
 ;-> Getters
 
-;Procedure.i MsgPackReadNull(*MsgPackData.MsgPackData)
-;	CompilerIf Not #MsgPack_DisableNullChecks
-;		If Not *MsgPackData
-;			DebuggerError("A #Null MsgPackData pointer was passed !")
-;			ProcedureReturn #Null
-;		EndIf
-;	CompilerEndIf
-;EndProcedure
+; Reads a nil from the given data.
+; Returns `#MsgPack_Error_Success` on success, something else otherwise.
+Procedure.MsgPack_ErrorCode MsgPackReadNull(*MsgPackData.MsgPackData)
+	Protected ErrorCode.MsgPack_ErrorCode
+
+	ErrorCode = _MsgPackExpectRead(*MsgPackData, #MsgPack_FormatCode_Null, 1)
+	If ErrorCode <> #MsgPack_Error_Success
+		ProcedureReturn ErrorCode
+	EndIf
+
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, 1)
+
+	ProcedureReturn #MsgPack_Error_Success
+EndProcedure
 
 
 ; Reads a boolean from the given data.
 ; Returns: The boolean value `#True` or `#False` as a `.b`
 ; OnError: Returns `#False` and sets the `MsgPackData\LastError` field.
-;          Will also raise a `DebuggerError`.
 Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
@@ -58,7 +64,7 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	*MsgPackData\LastError = #MsgPack_Error_Success
 	
 	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
+		Debug("End of buffer reached, cannot check data format code !")
 
 		*MsgPackData\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
 		ProcedureReturn #False
@@ -79,10 +85,10 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	    
 		ProcedureReturn #True
 	Else
-		DebuggerError("The format code isn't the one for a boolean !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
-		              " vs "+ RSet(Hex(#MsgPack_FormatCode_False), 2, "0") +
-                      "/"+ RSet(Hex(#MsgPack_FormatCode_True), 2, "0") + ")")
+		Debug("The format code isn't the one for a boolean !  (" +
+		      RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
+		      " vs "+ RSet(Hex(#MsgPack_FormatCode_False), 2, "0") +
+		      "/"+ RSet(Hex(#MsgPack_FormatCode_True), 2, "0") + ")")
 
 		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 		ProcedureReturn #False
@@ -102,8 +108,14 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteLiteral(*MsgPackData.MsgPackData, Liter
 		EndIf
 	CompilerEndIf
 
+	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_IsReadOnly)
+		Debug("Cannot write in a read-only buffer !")
+		*MsgPackData\LastError = #MsgPack_Error_BufferIsReadOnly
+		ProcedureReturn #MsgPack_Error_BufferIsReadOnly
+	EndIf
+
 	*MsgPackData\LastError = #MsgPack_Error_Success
-	
+
 	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1)
 		Protected GrowthErrorCode.MsgPack_ErrorCode
 		
@@ -126,17 +138,6 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteLiteral(*MsgPackData.MsgPackData, Liter
 EndProcedure
 
 
-;-> > Utility
-
-; Procedure.b MsgPackWriteBoolean(*MsgPackData.MsgPackData, Boolean)
-;     If Boolean
-;         ProcedureReturn MsgPackWriteTrue(*MsgPackData)
-;     Else
-;         ProcedureReturn MsgPackWriteFalse(*MsgPackData)
-;     EndIf
-; EndProcedure
-
-
 ;-> Macro aliases
 
 ; @Function MsgPackWriteNull(*Ptr.MsgPackData).MsgPack_ErrorCode
@@ -155,3 +156,16 @@ Macro MsgPackWriteNull(MsgPackData) : _MsgPackWriteLiteral(MsgPackData, #MsgPack
 Macro MsgPackWriteTrue(MsgPackData) : _MsgPackWriteLiteral(MsgPackData, #MsgPack_FormatCode_True) : EndMacro
 
 Macro MsgPackWriteFalse(MsgPackData) : _MsgPackWriteLiteral(MsgPackData, #MsgPack_FormatCode_False) : EndMacro
+
+
+;-> > Utility
+
+; Writes `#True` or `#False` depending on `Boolean`.
+; Returns `#MsgPack_Error_Success` on success, something else otherwise.
+Procedure.MsgPack_ErrorCode MsgPackWriteBoolean(*MsgPackData.MsgPackData, Boolean.b)
+	If Boolean
+		ProcedureReturn MsgPackWriteTrue(*MsgPackData)
+	EndIf
+
+	ProcedureReturn MsgPackWriteFalse(*MsgPackData)
+EndProcedure

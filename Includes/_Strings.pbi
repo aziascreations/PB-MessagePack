@@ -86,6 +86,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteStringField(*MsgPackData.MsgPackData, F
 		PokeS(*MsgPackData\Buffer + *MsgPackData\BufferOffset, String, -1, Encoding | #PB_String_NoZero)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + StringSize
 	EndIf
+	_MsgPackRewindOffsetAfterWrite(*MsgPackData, 1 + SizeFieldByteLength + StringSize)
 
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
@@ -128,7 +129,7 @@ Procedure.s MsgPackReadString(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)
 	EndIf
 
 	If Encoding = #PB_Unicode And StringSize % 2 <> 0
-		DebuggerWarning("UTF-16 string has an odd byte size !")
+		Debug("UTF-16 string has an odd byte size !")
 		*MsgPackData\LastError = #MsgPack_Error_InvalidStringSize
 		ProcedureReturn ""
 	EndIf
@@ -146,7 +147,7 @@ Procedure.s MsgPackReadString(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)
 		EndSelect
 	EndIf
 
-	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + StringSize
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, HeaderSize + StringSize)
 
 	ProcedureReturn ReturnedValue
 EndProcedure

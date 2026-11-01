@@ -42,7 +42,7 @@ Procedure.MsgPack_FormatCode MsgPackGetFormatCode(*MsgPackData.MsgPackData)
 	EndIf
 	
 	If _MsgPackIsAtTheEnd(*MsgPackData)
-		DebuggerError("End of buffer reached, cannot check data format code !")
+		Debug("End of buffer reached, cannot check data format code !")
 		ProcedureReturn #MsgPack_FormatCode_Invalid
 	EndIf
 	
@@ -131,9 +131,12 @@ Procedure.MsgPack_DataType MsgPackFormatCodeToDataType(FormatCode.MsgPack_Format
 			ProcedureReturn #MsgPack_DataTypes_Extension
 			
 		Case #MsgPack_FormatCode_Invalid:
+			; Can come from the data itself, or `MsgPackGetFormatCode()` at the end of the buffer.
+			ProcedureReturn #MsgPack_DataTypes_Unknown
+
 		Default:
-			; FIXME: ADD MESSAGE HERE !!!
-			DebuggerWarning("")
+			; `MsgPackGetFormatCode()` never returns these, the caller passed an invalid value.
+			DebuggerWarning("Unknown format code: 0x" + RSet(Hex(FormatCode), 2, "0"))
 			ProcedureReturn #MsgPack_DataTypes_Unknown
 	EndSelect
 EndProcedure

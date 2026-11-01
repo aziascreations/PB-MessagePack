@@ -29,9 +29,10 @@ CompilerIf #PB_Compiler_IsMainFile
 	EnableExplicit
 CompilerEndIf
 
-; FIXME: Implement something to not load the include twice in other programs
-#_MsgPack_EndiannessIncludePath = "./PB-Endianness/Includes/Endianness.pbi"
-XIncludeFile #_MsgPack_EndiannessIncludePath
+; Skipped if "Endianness.pbi" was already included from another path, by the program or another include.
+CompilerIf Not Defined(_NibblePoker_Endianness_WasIncluded, #PB_Constant) And Not Defined(EndianSwapQ, #PB_Procedure)
+	XIncludeFile "./PB-Endianness/Includes/Endianness.pbi"
+CompilerEndIf
 
 
 
@@ -163,12 +164,18 @@ Enumeration _MsgPack_ErrorCodes
 	#MsgPack_Error_UnsupportedStringEncoding = 60
 	#MsgPack_Error_InvalidStringSize = 61
 
+	; 7x - Arrays & Maps
+	#MsgPack_Error_TooManyEntries    = 70
+	#MsgPack_Error_OddMapFieldCount  = 71
+
 
 	#MsgPack_Error_CannotGrowBufferDueToConfig = 100
+	#MsgPack_Error_BufferIsReadOnly = 101
 EndEnumeration
 
 EnumerationBinary _MsgPack_DataFlags
-	; FIXME: Not implemented
+	; Prevents any write in a given `MsgPackData`, set on views from `MsgPackExamine()`.
+	; Writes return `#MsgPack_Error_BufferIsReadOnly`.
 	#MsgPack_DataFlags_IsReadOnly     = %0000000000000001
 
 	; Prevents a `MsgPackData` structure from auto-growing its buffer when needed.
@@ -186,21 +193,28 @@ EnumerationBinary _MsgPack_DataFlags
 	;  writing a value using the standard procedures.
 	#MsgPack_DataFlags_MoveOffsetAfterWrite = %0000000000010000
 
-	; FIXME: Not implemented
-	; Indicates a given `MsgPackData` is made to be iterated on.
+	; Indicates a given `MsgPackData` is a view made to be iterated on with `MsgPackNextEntry()`.
 	; And it implies it represents a Map or Array.
 	#MsgPack_DataFlags_Iterator       = %0000000000100000
+	; Set on map views, whose entries are made of a key and a value.
 	#MsgPack_DataFlags_CanProvideKeys = %0000000001000000
+	; Set on both map and array views.
 	#MsgPack_DataFlags_CanProvideVals = %0000000010000000
 EndEnumeration
 
 ; Flags set on every new `MsgPackData`, so all reads and writes move the offset.
 #_MsgPack_DefaultDataFlags = #MsgPack_DataFlags_MoveOffsetAfterRead | #MsgPack_DataFlags_MoveOffsetAfterWrite
 
+; Flags set on every view from `MsgPackExamine()`, which never own nor grow their buffer.
 EnumerationBinary _MsgPack_ExaminationOptions
-	; If set, we don't seek the end of the examined map/array.
-	#MsgPack_ExaminationOptions_NoEndSeeking = %0000000000000001
+	; Not recommended !
+	; Skips the check of the examined array or map's content, which also finds its end.
+	; The view can then read past the array or map until `MsgPackNextEntry()` reaches its end,
+	;  invalid content is only detected while iterating, and the examined offset isn't moved.
+	#MsgPack_ExaminationOptions_Unsafe = %0000000000000001
 EndEnumeration
+
+#_MsgPack_ViewDataFlags =#_MsgPack_DefaultDataFlags | #MsgPack_DataFlags_IsReadOnly | #MsgPack_DataFlags_CannotGrow | #MsgPack_DataFlags_NoBufferFree | #MsgPack_DataFlags_Iterator | #MsgPack_DataFlags_CanProvideVals
 
 
 
@@ -235,8 +249,13 @@ Structure MsgPackData
 	; If set to `1` or lower, we'll ignore this mechanism.
 	BufferGrowthIncrement.i
 
-	; IteratorSizeLeft, or snoething like this.
-	
+	; Offset of the iterator's current entry, only used by views from `MsgPackExamine()`.
+	; Set to `#MsgPack_InvalidSize` until the first `MsgPackNextEntry()` call.
+	IteratorEntryOffset.i
+
+	; Number of fields left to iterate on, map keys and values included, only used by views.
+	IteratorFieldsLeft.q
+
 	; LastError code
 	LastError.MsgPack_ErrorCode
 	
@@ -263,6 +282,21 @@ EndMacro
 
 Macro _MsgPackHasFlag(MsgPackWrapper, DataFlag)
 	((MsgPackWrapper\DataFlags & DataFlag) <> $0000)
+EndMacro
+
+; Moves the offset past a field of `Size` bytes that was fully read, if the flags allow it.
+Macro _MsgPackMoveOffsetAfterRead(MsgPackWrapper, Size)
+	If _MsgPackHasFlag(MsgPackWrapper, #MsgPack_DataFlags_MoveOffsetAfterRead)
+		MsgPackWrapper\BufferOffset = MsgPackWrapper\BufferOffset + (Size)
+	EndIf
+EndMacro
+
+; Moves the offset back before a field of `Size` bytes that was fully written, if the flags don't allow it to move.
+; Writes always move the offset as they go, since most of them are done in multiple steps.
+Macro _MsgPackRewindOffsetAfterWrite(MsgPackWrapper, Size)
+	If Not _MsgPackHasFlag(MsgPackWrapper, #MsgPack_DataFlags_MoveOffsetAfterWrite)
+		MsgPackWrapper\BufferOffset = MsgPackWrapper\BufferOffset - (Size)
+	EndIf
 EndMacro
 
 

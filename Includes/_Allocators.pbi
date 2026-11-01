@@ -151,8 +151,7 @@ EndProcedure
 
 
 ; TODO: Add callback in the structure, maybe ?
-; FIXME: Use a .q for the size !!!!
-Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeIncrease.i)
+Procedure.MsgPack_ErrorCode MsgPackGrow(*MsgPackData.MsgPackData, DesiredSizeIncrease.q)
 	Protected NewSize.q
 	Protected *NewBuffer
 	

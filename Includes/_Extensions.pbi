@@ -105,6 +105,8 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 		CopyMemory(*Data, *MsgPackData\Buffer + *MsgPackData\BufferOffset, DataSize)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + DataSize
 	EndIf
+	; Format code, ext type, and size field for non-fixext ones.
+	_MsgPackRewindOffsetAfterWrite(*MsgPackData, 2 + SizeFieldByteLength + DataSize)
 
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure

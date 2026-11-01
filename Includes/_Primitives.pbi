@@ -51,6 +51,12 @@ Procedure.MsgPack_ErrorCode _MsgPackReserveWrite(*MsgPackData.MsgPackData, Size.
 
 	; `Size` is a quad so sized fields up to 4 GiB can't be truncated, but the end
 	;  offset must still fit in a `.i`, which isn't the case on x86 past 2 GiB.
+	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_IsReadOnly)
+		Debug("Cannot write in a read-only buffer !")
+		*MsgPackData\LastError = #MsgPack_Error_BufferIsReadOnly
+		ProcedureReturn #MsgPack_Error_BufferIsReadOnly
+	EndIf
+
 	If Size < 0 Or Size > #_MsgPack_MaxIntegerValue - *MsgPackData\BufferOffset
 		DebuggerWarning("Requested size can't be addressed: " + Str(Size))
 		*MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
@@ -143,6 +149,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteFixedField(*MsgPackData.MsgPackData, Fo
 			PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
 	EndSelect
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1 + ValueByteLength
+	_MsgPackRewindOffsetAfterWrite(*MsgPackData, 1 + ValueByteLength)
 
 	ProcedureReturn #MsgPack_Error_Success
 EndProcedure
@@ -169,7 +176,7 @@ Procedure.q _MsgPackReadFixedField(*MsgPackData.MsgPackData, FormatCode.MsgPack_
 		Case 8
 			ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	EndSelect
-	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1 + ValueByteLength
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, 1 + ValueByteLength)
 
 	ProcedureReturn ReturnedValue
 EndProcedure
@@ -353,7 +360,7 @@ Procedure.q MsgPackReadInteger(*MsgPackData.MsgPackData)
 		     #MsgPack_FormatCode_FixIntNegative:
 			; The whole byte is the value, both ranges are valid signed bytes.
 			ReturnedValue = PeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
-			*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
+			_MsgPackMoveOffsetAfterRead(*MsgPackData, 1)
 			*MsgPackData\LastError = #MsgPack_Error_Success
 			ProcedureReturn ReturnedValue
 		Case #MsgPack_FormatCode_UInt8:
