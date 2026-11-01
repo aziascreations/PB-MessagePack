@@ -5,8 +5,7 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
 
 
 ## Features
-* ~~Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification~~
-  * **Still missing Map and Array**
+* Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification
 * Explicit or implicit data formats when reading/writing
   * *ReadInteger vs ReadI8/ReadU8/...*
 * ~~Fully documented~~
@@ -14,8 +13,10 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
 
 ## Limitations
 * No custom `malloc`/`realloc`/`free` callbacks
-* More involved Map and Array parsing
+* More involved Map and Array interactions
   * *No dynamic typing*
+  * *Building arrays/maps requires special insertion in parent MsgPack ~~(See examples)~~*
+  * *Lots of internal checks for boundaries and counts before any reading can be done*
 * Usage of larger `.q` type for field sizes
   * *Helps prevent unsigned numbers causing issues on x86*
 * Particular handling of `NaN` for *Float32* and *Float64*
@@ -27,7 +28,7 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
 ## Usage
 
 ### Submodule
-Adding submodule:
+Adding as a submodule:
 ```shell
 git submodule add https://github.com/aziascreations/PB-MessagePack.git Includes/PB-MessagePack
 ```
@@ -37,6 +38,8 @@ Pull latest submodule version:
 git submodule update --init --recursive
 ```
 
+TODO: Add note about handling pre-inclusion of PB-Endianness
+
 
 ### Inclusion
 ...
@@ -44,11 +47,9 @@ git submodule update --init --recursive
 
 ## Examples
 
-### Writing explicitely
-
-```purebasic
-...
-```
+### Explicit vs Implicit typing
+* [BasicExplicitTyping.pb](Examples/BasicExplicitTyping/BasicExplicitTyping.pb)
+* [BasicImplicitTyping.pb](Examples/BasicImplicitTyping/BasicImplicitTyping.pb)
 
 
 ## Cloning
