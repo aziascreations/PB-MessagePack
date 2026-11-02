@@ -95,7 +95,9 @@ Procedure.i MsgPackWrapMsgBuffer(*Buffer, BufferSize.i, GiveOwnership.b = #False
 	ProcedureReturn *ReturnedValue
 EndProcedure
 
-Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b = #False)
+; Frees a structure, and its buffer too if `FreeDataBuffer` is `#True`.
+; `FreeDataBuffer` has no default on purpose: forgetting it either leaks the buffer or frees one that's still in use.
+Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b)
 	If Not *MsgPackData
 		ProcedureReturn #False
 	EndIf

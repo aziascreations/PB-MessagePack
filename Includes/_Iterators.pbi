@@ -258,6 +258,13 @@ Procedure.MsgPack_ErrorCode _MsgPackGetFieldLayout(*MsgPackData.MsgPackData, *He
 				ChildCount = ChildCount * 2
 			EndIf
 
+			; Each contained field takes at least 1 byte, bogus counts are rejected right away.
+			If ChildCount > *MsgPackData\BufferSize - *MsgPackData\BufferOffset - ValueStartOffset
+				Debug("The array or map has more entries than the buffer can hold !")
+				*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+				ProcedureReturn #MsgPack_Error_BufferTooSmall
+			EndIf
+
 			*HeaderSize\i = ValueStartOffset
 			*ChildCount\q = ChildCount
 
@@ -278,8 +285,19 @@ Procedure.MsgPack_ErrorCode _MsgPackGetFieldLayout(*MsgPackData.MsgPackData, *He
 EndProcedure
 
 
+; Checks if a format code byte is the one of an array or map, empty ones included.
+Macro _MsgPackIsContainerFormatByte(Byte)
+	((Byte & $E0) = $80 Or (Byte >= $DC And Byte <= $DF))
+EndMacro
+
+; Fields left to skip at each nesting level, the top level being `0`.
+Structure _MsgPackSkipLevels
+	FieldsLeft.q[#MsgPack_MaxDepth + 1]
+EndStructure
+
 ; Moves the offset past the next `FieldCount` fields, the ones contained in arrays and maps included.
 ; Done iteratively so deeply nested arrays and maps can't overflow the stack.
+; Arrays and maps nested deeper than `#MsgPack_MaxDepth`, counting the ones containing the structure, are rejected.
 ; The offset is left untouched on errors.
 ; Sets the structure's error code and returns it.
 Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCount.q)
@@ -287,6 +305,9 @@ Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCo
 	Protected HeaderSize.i
 	Protected DataSize.q
 	Protected ChildCount.q
+	Protected Level.i = 0
+	Protected Levels._MsgPackSkipLevels
+	Protected FormatByte.a
 	Protected ErrorCode.MsgPack_ErrorCode = #MsgPack_Error_Success
 
 	CompilerIf Not #MsgPack_DisableNullChecks
@@ -298,14 +319,43 @@ Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCo
 
 	StartOffset = *MsgPackData\BufferOffset
 
+	; Each field takes at least 1 byte, which also keeps `FieldCount` far from overflowing below.
+	If FieldCount > *MsgPackData\BufferSize - *MsgPackData\BufferOffset And Not _MsgPackIsAtTheEnd(*MsgPackData)
+		Debug("End of buffer reached, " + Str(FieldCount) + " fields can't fit !")
+		*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+		ProcedureReturn #MsgPack_Error_BufferTooSmall
+	EndIf
+
+	; `FieldCount` is the total left to skip, all levels included.
+	Levels\FieldsLeft[0] = FieldCount
+
 	While FieldCount > 0
+		; Leaving the arrays and maps whose content was fully skipped.
+		While Levels\FieldsLeft[Level] = 0
+			Level = Level - 1
+		Wend
+
 		ErrorCode = _MsgPackGetFieldLayout(*MsgPackData, @HeaderSize, @DataSize, @ChildCount)
 		If ErrorCode <> #MsgPack_Error_Success
 			Break
 		EndIf
 
+		; Arrays and maps are at depth `Level + 1` from the structure's content.
+		FormatByte = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
+		If _MsgPackIsContainerFormatByte(FormatByte) And *MsgPackData\IteratorDepth + Level + 1 > #MsgPack_MaxDepth
+			Debug("Arrays and maps are nested deeper than " + Str(#MsgPack_MaxDepth) + " levels !")
+			*MsgPackData\LastError = #MsgPack_Error_MaxDepthExceeded
+			ErrorCode = #MsgPack_Error_MaxDepthExceeded
+			Break
+		EndIf
+
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
 		FieldCount = FieldCount - 1 + ChildCount
+		Levels\FieldsLeft[Level] = Levels\FieldsLeft[Level] - 1
+		If ChildCount > 0
+			Level = Level + 1
+			Levels\FieldsLeft[Level] = ChildCount
+		EndIf
 
 		; Each field takes at least 1 byte, which rejects bogus array and map sizes early.
 		If FieldCount > *MsgPackData\BufferSize - *MsgPackData\BufferOffset
@@ -442,6 +492,13 @@ Procedure.i MsgPackExamine(*MsgPackData.MsgPackData, ExaminationOptions.MsgPack_
 		ProcedureReturn #Null
 	EndIf
 
+	; Unsafe views aren't checked beforehand, nesting them is limited here.
+	If *MsgPackData\IteratorDepth >= #MsgPack_MaxDepth
+		Debug("Arrays and maps are nested deeper than " + Str(#MsgPack_MaxDepth) + " levels !")
+		*MsgPackData\LastError = #MsgPack_Error_MaxDepthExceeded
+		ProcedureReturn #Null
+	EndIf
+
 	StartOffset = *MsgPackData\BufferOffset
 	IsUnsafe = Bool(ExaminationOptions & #MsgPack_ExaminationOptions_Unsafe)
 
@@ -471,6 +528,7 @@ Procedure.i MsgPackExamine(*MsgPackData.MsgPackData, ExaminationOptions.MsgPack_
 	*View\DataFlags = #_MsgPack_ViewDataFlags
 	*View\IteratorEntryOffset = #MsgPack_InvalidSize
 	*View\IteratorFieldsLeft = ChildCount
+	*View\IteratorDepth = *MsgPackData\IteratorDepth + 1
 
 	If DataType = #MsgPack_DataTypes_Map
 		*View\DataFlags = *View\DataFlags | #MsgPack_DataFlags_CanProvideKeys
@@ -532,6 +590,13 @@ Procedure.b MsgPackNextEntry(*Iterator.MsgPackData)
 		ProcedureReturn #False
 	EndIf
 
+	; Unsafe views can announce more entries than their buffer holds.
+	If *Iterator\IteratorEntryOffset >= *Iterator\BufferSize
+		Debug("End of buffer reached, the remaining entries are missing !")
+		*Iterator\LastError = #MsgPack_Error_AtOrPastTheEndOfBuffer
+		ProcedureReturn #False
+	EndIf
+
 	ProcedureReturn #True
 EndProcedure
 
@@ -575,6 +640,8 @@ Procedure.q _MsgPackCountFields(*MsgPackData.MsgPackData, *Buffer, BufferSize.q)
 	; Temporary wrapper, so the regular procedures can walk the data.
 	Source\Buffer = *Buffer
 	Source\BufferSize = BufferSize
+	; The fields will be in the written array or map, so the result stays within `#MsgPack_MaxDepth`.
+	Source\IteratorDepth = 1
 
 	While Not _MsgPackIsAtTheEnd(Source)
 		If _MsgPackSkipFields(@Source, 1) <> #MsgPack_Error_Success
@@ -607,7 +674,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteContainer(*MsgPackData.MsgPackData, IsM
 	CompilerEndIf
 
 	; The content's address would be invalidated when growing.
-	If *Buffer And *Buffer >= *MsgPackData\Buffer And *Buffer < *MsgPackData\Buffer + *MsgPackData\BufferSize
+	If _MsgPackOverlapsBuffer(*MsgPackData, *Buffer, BufferSize)
 		DebuggerError("Cannot write content located in the destination's own buffer !")
 		*MsgPackData\LastError = #MsgPack_Error_InvalidValue
 		ProcedureReturn #MsgPack_Error_InvalidValue

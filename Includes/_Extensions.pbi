@@ -84,6 +84,13 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 			ProcedureReturn #MsgPack_Error_InvalidValue
 		EndIf
 
+		; Growing the buffer would free data taken from it before it's copied.
+		If _MsgPackOverlapsBuffer(*MsgPackData, *Data, DataSize)
+			DebuggerError("Cannot write data located in the destination's own buffer !")
+			*MsgPackData\LastError = #MsgPack_Error_InvalidValue
+			ProcedureReturn #MsgPack_Error_InvalidValue
+		EndIf
+
 		ErrorCode = _MsgPackReserveWrite(*MsgPackData, 2 + DataSize)
 		If ErrorCode <> #MsgPack_Error_Success
 			ProcedureReturn ErrorCode
@@ -92,7 +99,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 		PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
 	Else
-		ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize, 1)
+		ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize, 1, *Data)
 		If ErrorCode <> #MsgPack_Error_Success
 			ProcedureReturn ErrorCode
 		EndIf

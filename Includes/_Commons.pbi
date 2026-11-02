@@ -44,6 +44,18 @@ CompilerIf Not Defined(MsgPack_DisableNullChecks, #PB_Constant)
 	#MsgPack_DisableNullChecks = #False
 CompilerEndIf
 
+; Maximum nesting depth of arrays and maps, a top-level array or map being at depth 1.
+; Deeper data is rejected as invalid with `#MsgPack_Error_MaxDepthExceeded`.
+; Bounds the time spent on hostile data, nested views re-check their content at each level.
+; Each depth level costs 8 bytes of stack per skip, hence the upper bound.
+CompilerIf Not Defined(MsgPack_MaxDepth, #PB_Constant)
+	#MsgPack_MaxDepth = 128
+CompilerEndIf
+
+CompilerIf #MsgPack_MaxDepth < 1 Or #MsgPack_MaxDepth > 4096
+	CompilerError "#MsgPack_MaxDepth must be between 1 and 4096 !"
+CompilerEndIf
+
 
 
 ; ------------------------------------------------------------------------------
@@ -167,6 +179,7 @@ Enumeration _MsgPack_ErrorCodes
 	; 7x - Arrays & Maps
 	#MsgPack_Error_TooManyEntries    = 70
 	#MsgPack_Error_OddMapFieldCount  = 71
+	#MsgPack_Error_MaxDepthExceeded  = 72
 
 
 	#MsgPack_Error_CannotGrowBufferDueToConfig = 100
@@ -256,6 +269,10 @@ Structure MsgPackData
 	; Number of fields left to iterate on, map keys and values included, only used by views.
 	IteratorFieldsLeft.q
 
+	; Number of arrays and maps containing the data, `0` for regular structures, `1` for views over a top-level one.
+	; Counted against `#MsgPack_MaxDepth`.
+	IteratorDepth.i
+
 	; LastError code
 	LastError.MsgPack_ErrorCode
 	
@@ -282,6 +299,12 @@ EndMacro
 
 Macro _MsgPackHasFlag(MsgPackWrapper, DataFlag)
 	((MsgPackWrapper\DataFlags & DataFlag) <> $0000)
+EndMacro
+
+; Checks if the `Size` bytes at `Pointer` overlap the buffer of `MsgPackWrapper`.
+; Writers refuse such data, growing the buffer would free it before it's copied.
+Macro _MsgPackOverlapsBuffer(MsgPackWrapper, Pointer, Size)
+	(Pointer <> #Null And (Size) > 0 And Pointer < MsgPackWrapper\Buffer + MsgPackWrapper\BufferSize And Pointer + (Size) > MsgPackWrapper\Buffer)
 EndMacro
 
 ; Moves the offset past a field of `Size` bytes that was fully read, if the flags allow it.
@@ -321,7 +344,9 @@ EndProcedure
 CompilerIf #True
 	Procedure _MsgPackDebug(Message.s)
 		Debug Message
-		OutputDebugString_(Message)
+		CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+			OutputDebugString_(Message)
+		CompilerEndIf
 	EndProcedure
 CompilerElse
 	Macro _MsgPackDebug(Message) :  : EndMacro

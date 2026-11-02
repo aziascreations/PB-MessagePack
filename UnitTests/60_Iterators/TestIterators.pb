@@ -75,13 +75,18 @@ AssertEqualsQ(MsgPackGetFieldFullSize(*MsgPack), #MsgPack_InvalidSize, "Truncate
 AssertEquals(MsgPackLastError(*MsgPack), #MsgPack_Error_BufferTooSmall, "Truncated UInt16 error is set")
 FreeWrappedHex(*MsgPack)
 
-; Deep nesting doesn't overflow the stack
+; Deep nesting, up to `#MsgPack_MaxDepth` (128 by default), see "TestDepthLimit*.pb" for the rest
 Hex = ""
-For i = 1 To 10000
+For i = 1 To 128
 	Hex = Hex + "91"
 Next
 *MsgPack = WrapHex(Hex + "01")
-AssertEqualsQ(MsgPackGetFieldFullSize(*MsgPack), 10001, "Deeply nested arrays")
+AssertEqualsQ(MsgPackGetFieldFullSize(*MsgPack), 129, "Arrays nested 128 levels deep")
+FreeWrappedHex(*MsgPack)
+
+*MsgPack = WrapHex("91" + Hex + "01")
+AssertEqualsQ(MsgPackGetFieldFullSize(*MsgPack), #MsgPack_InvalidSize, "Arrays nested 129 levels deep are rejected")
+AssertEquals(MsgPackLastError(*MsgPack), #MsgPack_Error_MaxDepthExceeded, "Max depth error is set")
 FreeWrappedHex(*MsgPack)
 
 

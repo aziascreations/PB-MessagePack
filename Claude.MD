@@ -112,8 +112,9 @@ PureBasic include for creating/reading MessagePack data.
   Wraps a given buffer `*Buffer` of a given size `InitialSize.i` into an internal structure. \
   Returns `#Null` on errors.
 
-* Procedure.b MsgPackFree(*MsgPackData.MsgPackData, FreeDataBuffer.b = #False) \
-  Frees a given internal structure `*MsgPackData` and its associated buffer if `FreeDataBuffer` is `#True`.
+* `MsgPackFree.b(*MsgPackData.MsgPackData, FreeDataBuffer.b)` \
+  Frees a given internal structure `*MsgPackData` and its associated buffer if `FreeDataBuffer` is `#True`. \
+  `FreeDataBuffer` is mandatory, use `#False` for buffers wrapped with `MsgPackWrapMsgBuffer` that the caller still owns. \
   Returns `#True` if freed properly, `#False` otherwise.
 
 * `MsgPackFinalize.i(*MsgPackData.MsgPackData)` \

@@ -57,7 +57,7 @@ XIncludeFile "./_Primitives.pbi"
 ; The caller is expected to write the extra header bytes and `DataSize` bytes of data,
 ;  and move the offset afterward.
 ; Sets the structure's error code and returns it.
-Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, SizeFieldByteLength.a, DataSize.q, ExtraHeaderSize.a = 0)
+Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackData, FormatCode.MsgPack_FormatCode, SizeFieldByteLength.a, DataSize.q, ExtraHeaderSize.a = 0, *Data = #Null)
 	Protected MaxDataSize.q
 	Protected ErrorCode.MsgPack_ErrorCode
 
@@ -91,6 +91,13 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackDa
 		DebuggerWarning("Data is bigger than `" + Str(MaxDataSize) + "` bytes !")
 		*MsgPackData\LastError = #MsgPack_Error_BinaryDataSizeIsTooBig
 		ProcedureReturn #MsgPack_Error_BinaryDataSizeIsTooBig
+	EndIf
+
+	; Growing the buffer would free data taken from it before it's copied.
+	If _MsgPackOverlapsBuffer(*MsgPackData, *Data, DataSize)
+		DebuggerError("Cannot write data located in the destination's own buffer !")
+		*MsgPackData\LastError = #MsgPack_Error_InvalidValue
+		ProcedureReturn #MsgPack_Error_InvalidValue
 	EndIf
 
 	ErrorCode = _MsgPackReserveWrite(*MsgPackData, 1 + SizeFieldByteLength + ExtraHeaderSize + DataSize)
@@ -131,7 +138,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedField(*MsgPackData.MsgPackData, Fo
 		EndIf
 	CompilerEndIf
 
-	ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize)
+	ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize, 0, *Data)
 	If ErrorCode <> #MsgPack_Error_Success
 		ProcedureReturn ErrorCode
 	EndIf
