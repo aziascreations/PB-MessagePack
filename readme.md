@@ -4,6 +4,11 @@ PureBasic Include for serializing and deserializing MessagePack data.
 Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification.
 
 
+> **🤖 AI Disclaimer** \
+> This project uses AI-assisted development tools. \
+> See the [AI usage policy](ai-policy.md) for details.
+
+
 ## Features
 * Full support of the [MessagePack](https://github.com/msgpack/msgpack) specification
 * Explicit or implicit data formats when reading/writing
@@ -17,6 +22,7 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
   * *No dynamic typing*
   * *Building arrays/maps requires special insertion in parent MsgPack ~~(See examples)~~*
   * *Lots of internal checks for boundaries and counts before any reading can be done*
+  * *[TODO: Note about deep nesting and performances]*
 * Usage of larger `.q` type for field sizes
   * *Helps prevent unsigned numbers causing issues on x86*
 * Particular handling of `NaN` for *Float32* and *Float64*
