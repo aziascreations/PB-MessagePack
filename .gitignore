@@ -6,6 +6,7 @@
 *.dll
 *.exe
 *.cfg
+Build/
 
 # Binary blobs
 *.bin
@@ -19,5 +20,12 @@ Trash/
 *.zip
 /spec*
 
+# Performance tests
+PerfTests/Results/
+PerfTests/**/bin/
+PerfTests/**/obj/
+PerfTests/**/__pycache__/
+
 # Security test suite
+# Kept private as it is more than 3GB
 SecurityTests/
