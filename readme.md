@@ -25,9 +25,10 @@ Based on the [msgpack/msgpack](https://github.com/msgpack/msgpack) specification
   * *[TODO: Note about deep nesting and performances]*
 * Usage of larger `.q` type for field sizes
   * *Helps prevent unsigned numbers causing issues on x86*
-* Particular handling of `NaN` for *Float32* and *Float64*
-  * `0x7F800001` gets returned as `0x7FC00001` (x87 FPU limitation)
-  * **ARM64 untested yet**
+* Particular handling of signaling `NaN` for *Float32*
+  * `0x7F800001` may be returned as `0x7FC00001` on x86 and x64 (x87 FPU limitation)
+  * ARM64 keeps them as-is
+  * `MsgPackReadFloat` does it on all architectures
 * No implementation of the *Timestamp* extension
 
 
