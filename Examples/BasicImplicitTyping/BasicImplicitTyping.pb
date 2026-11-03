@@ -1,8 +1,8 @@
 ; ------------------------------------------------------------------------------
 ;- Notes
 
-; This example show you how to write, export and read a MessagePack buffer
-;  with implicitely typed variables whose format code is automatically
+; This example shows you how to write, export and read a MessagePack buffer
+;  with implicitly typed variables whose format code is automatically
 ;  resolved based on the given data.
 
 
@@ -92,8 +92,7 @@ EndIf
 Debug "Encoded size: " + Str(MemorySize(*Buffer))
 
 
-; It also gives ownership of the buffer to the obscure structure.
-; And it is marked internally as read-only.
+; Giving ownership of the buffer to the obscure structure.
 *Reader = MsgPackWrapMsgBuffer(*Buffer, MemorySize(*Buffer), #True)
 If Not *Reader
     Debug "Failed to wrap the buffer !"
@@ -102,7 +101,6 @@ EndIf
 
 
 ; Getting data out of the MsgPack buffer.
-OutputStruct.MyDataPacket
 If Not DecodeMyDataPacket(*Reader, @OutputStruct)
     Debug "Failed to decode the packet !"
     End 5

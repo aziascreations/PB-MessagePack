@@ -1,17 +1,24 @@
 # MessagePack.pbi
 PureBasic include for creating/reading MessagePack data.
 
-**When integrating, do not read any `.pbi` files to save on tokens, use the API below.**
+**When integrating, do not read any `.pbi` files to save on tokens, use the API below.** \
+When working on the include itself, see [Working on this repository](#working-on-this-repository).
 
 
 ## APIs
 
 ### Behaviour
-* ???
+* All the procedures take a `*MsgPackData` from `MsgPackCreate`, `MsgPackWrapMsgBuffer` or `MsgPackExamine`.
+* Errors are reported through the internal error code, see `MsgPackLastError`.
+  * Writes and other procedures returning a `.MsgPack_ErrorCode` also return it directly.
+  * Reads returning a value give `0`, `""`, `#False`, `#Null` or `#MsgPack_InvalidSize` on errors,
+    which can also be valid values, so check `MsgPackLastError` after them.
+  * A successful read or write resets it to `#MsgPack_Error_Success`.
+* Failed reads and writes don't move the internal offset, and write nothing.
 * The internal offset is auto-incremented on all complete reads and writes.
-  * Does not apply to `MsgPackGetFormatCode`.
+  * Does not apply to `MsgPackGetFormatCode`, `MsgPackGetExtensionType`, `MsgPackGetEntryCount` and `MsgPackGetFieldFullSize`.
   * Can be disabled with the internal `#MsgPack_DataFlags_MoveOffsetAfterRead/Write` flags, honored by every read and write.
-* The internal buffer is automatically resized as needed.
+* The internal buffer is automatically grown as needed, unless it is owned by the caller.
 * Invalid or truncated data never raises a `DebuggerError`, only programming errors do. (e.g.: `#Null` pointers)
 * Views from `MsgPackExamine` are read-only, writes return `#MsgPack_Error_BufferIsReadOnly`.
 
@@ -20,7 +27,7 @@ PureBasic include for creating/reading MessagePack data.
 
 * `.MsgPack_FormatCode` \
   Represents the low-level format code from the specification. \
-  When [interacting] with fix* types, the value in it will be set to 0. 
+  Fix* types are returned without the value/size bits they embed, e.g. `$A0` for any FixStr and `0` for positive fixints. 
   * `#MsgPack_FormatCode_Null`
   * `#MsgPack_FormatCode_False`
   * `#MsgPack_FormatCode_True`
@@ -63,7 +70,7 @@ PureBasic include for creating/reading MessagePack data.
 * `.MsgPack_DataType` \
   High-level representation of a format code. \
   Should be used when iterating on complex objects to detect the members' general type. 
-  * `#MsgPack_DataTypes_Unknown` - The `0x??` format code.
+  * `#MsgPack_DataTypes_Unknown` - For `#MsgPack_FormatCode_Invalid`.
   * `#MsgPack_DataTypes_Null`
   * `#MsgPack_DataTypes_Boolean`
   * `#MsgPack_DataTypes_Integer`
@@ -72,13 +79,14 @@ PureBasic include for creating/reading MessagePack data.
   * `#MsgPack_DataTypes_Binary`
   * `#MsgPack_DataTypes_Array`
   * `#MsgPack_DataTypes_Map`
-  * `#MsgPack_DataTypes_Ext`
   * `#MsgPack_DataTypes_Extension`
 
 * `.MsgPack_ErrorCode` \
   * `#MsgPack_Error_Success = 0`
   * `#MsgPack_Error_NullPointerGiven`
   * `#MsgPack_Error_BufferTooSmall`
+  * `#MsgPack_Error_InvalidValue`
+  * `#MsgPack_Error_ValueOverflow`
   * `#MsgPack_Error_FailedToGrowBuffer`
   * `#MsgPack_Error_AtOrPastTheEndOfBuffer`
   * `#MsgPack_Error_ReadPastEndOfBuffer`
@@ -91,26 +99,62 @@ PureBasic include for creating/reading MessagePack data.
   * `#MsgPack_Error_InvalidStringSize`
   * `#MsgPack_Error_TooManyEntries`
   * `#MsgPack_Error_OddMapFieldCount`
+  * `#MsgPack_Error_MaxDepthExceeded`
   * `#MsgPack_Error_CannotGrowBufferDueToConfig`
   * `#MsgPack_Error_BufferIsReadOnly`
 
 * `.MsgPack_DataFlag` \
   Internal flags, do not touch.
 
+* `.MsgPack_ExaminationOption` \
+  Options for `MsgPackExamine`.
+  * `#MsgPack_ExaminationOptions_Unsafe`
 
-### Commons
+
+### Constants & compiler options
+* `#MsgPack_InvalidSize = -1` \
+  Returned by procedures that return a size, on errors.
+
+* `#MsgPack_MaxDepth` \
+  Maximum nesting depth of arrays and maps, a top-level array or map being at depth 1. \
+  Defaults to `128`, can be defined before the inclusion, from `1` to `4096`. \
+  Deeper data is rejected with `#MsgPack_Error_MaxDepthExceeded`.
+
+* `#MsgPack_DisableNullChecks` \
+  Disables the `#Null` pointer checks when defined as `#True` before the inclusion. \
+  Defaults to `#False`.
+
+
+### Errors & format codes
 * `MsgPackLastError.MsgPack_ErrorCode(*MsgPackData.MsgPackData)` \
-  ...
+  Returns the error code set by the last read, write or navigation on `*MsgPackData`, `#MsgPack_Error_Success` if it succeeded. \
+  Returns `#MsgPack_Error_NullPointerGiven` if `*MsgPackData` is `#Null`.
+
+* `MsgPackGetFormatCode.MsgPack_FormatCode(*MsgPackData.MsgPackData)` \
+  Returns the format code of the field at the current internal offset, without moving it or setting the internal error code. \
+  Returns `#MsgPack_FormatCode_Invalid` at the end of the buffer, or for the `0xC1` byte.
+
+* `MsgPackFormatCodeToDataType.MsgPack_DataType(FormatCode.MsgPack_FormatCode)` \
+  Returns the data type of a format code from `MsgPackGetFormatCode`. \
+  Returns `#MsgPack_DataTypes_Unknown` for `#MsgPack_FormatCode_Invalid`.
 
 
-### Thingies
-* `MsgPackCreate.i(InitialSize.i)` \
+### Allocation & ownership
+* `MsgPackCreate.i(InitialSize.i, GrowthIncrement.i = 1)` \
   Prepares an internal structure for a buffer of a given size `InitialSize.i`. \
+  The buffer grows in multiples of `GrowthIncrement` bytes, `1` growing it by the exact size needed by each write. \
   Returns `#Null` on errors.
 
-* `MsgPackWrapMsgBuffer.i(*Buffer, BufferSize.i)` \
-  Wraps a given buffer `*Buffer` of a given size `InitialSize.i` into an internal structure. \
+* `MsgPackWrapMsgBuffer.i(*Buffer, BufferSize.i, GiveOwnership.b = #False, GrowthIncrement.i = 1)` \
+  Wraps a given buffer `*Buffer` of a given size `BufferSize.i` into an internal structure, without copying it. \
+  If `GiveOwnership` is `#False`, the buffer stays owned by the caller, and is never grown or freed. \
+  If `GiveOwnership` is `#True`, `*Buffer` must come from `AllocateMemory()`, it can be grown, and freed with `MsgPackFree`. \
   Returns `#Null` on errors.
+
+* `MsgPackGrow.MsgPack_ErrorCode(*MsgPackData.MsgPackData, DesiredSizeIncrease.q)` \
+  Grows the buffer by `DesiredSizeIncrease` bytes, rounded up to a multiple of its `GrowthIncrement`. \
+  Called by the writes as needed, there's no need to call it beforehand. \
+  Returns `#MsgPack_Error_Success` on success, something else otherwise. (e.g.: `#MsgPack_Error_CannotGrowBufferDueToConfig` for buffers owned by the caller)
 
 * `MsgPackFree.b(*MsgPackData.MsgPackData, FreeDataBuffer.b)` \
   Frees a given internal structure `*MsgPackData` and its associated buffer if `FreeDataBuffer` is `#True`. \
@@ -126,29 +170,28 @@ PureBasic include for creating/reading MessagePack data.
 
 
 ### Literals
-* `MsgPackReadBoolean.b(*MsgPackData.MsgPackData)`
+* `MsgPackReadBoolean.b(*MsgPackData.MsgPackData)` \
   Attempts to read the boolean at the current internal offset. \
-  Returns `#True` or `#False`. \
-  May set the internal error code if any happens. \
+  Returns `#True` or `#False`, `#False` on errors too. \
   See: `MsgPackLastError`
 
-* `MsgPackWriteNull.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
-  Attempts to write `#Null` at the current internal offset. \
+* `MsgPackWriteNull.MsgPack_ErrorCode(*MsgPackData.MsgPackData)` \
+  Attempts to write a nil at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
 
-* `MsgPackWriteTrue.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
+* `MsgPackWriteTrue.MsgPack_ErrorCode(*MsgPackData.MsgPackData)` \
   Attempts to write `#True` at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
 
-* `MsgPackWriteFalse.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
+* `MsgPackWriteFalse.MsgPack_ErrorCode(*MsgPackData.MsgPackData)` \
   Attempts to write `#False` at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
 
-* `MsgPackWriteBoolean.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Boolean.b)`
+* `MsgPackWriteBoolean.MsgPack_ErrorCode(*MsgPackData.MsgPackData, Boolean.b)` \
   Writes `#True` or `#False` depending on `Boolean`. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise.
 
-* `MsgPackReadNull.MsgPack_ErrorCode(*MsgPackData.MsgPackData)`
+* `MsgPackReadNull.MsgPack_ErrorCode(*MsgPackData.MsgPackData)` \
   Attempts to read a nil at the current internal offset. \
   Returns `#MsgPack_Error_Success` on success, something else otherwise, in which case the offset isn't moved.
 
@@ -316,6 +359,49 @@ EndIf
   Returns `#MsgPack_Error_TooManyEntries` if the entries don't fit in it.
 
 
+## Usage patterns
+
+### Writing, exporting and reading
+```purebasic
+Define *Writer = MsgPackCreate(64)
+If MsgPackWriteInteger(*Writer, 42) <> #MsgPack_Error_Success
+	; ...
+EndIf
+
+; Frees `*Writer`, the caller now owns `*Buffer`.
+Define *Buffer = MsgPackFinalize(*Writer)
+
+; Gives `*Buffer` back to a structure, freed along with it.
+Define *Reader = MsgPackWrapMsgBuffer(*Buffer, MemorySize(*Buffer), #True)
+Define Value.q = MsgPackReadInteger(*Reader)
+If MsgPackLastError(*Reader) <> #MsgPack_Error_Success
+	; ...
+EndIf
+
+MsgPackFree(*Reader, #True)
+```
+
+### Building arrays & maps
+Their content is written in a separate structure, then copied in with its fields counted.
+```purebasic
+Define *Fields = MsgPackCreate(32)
+MsgPackWriteString(*Fields, "Key")
+MsgPackWriteInteger(*Fields, 1)
+MsgPackWriteMapFrom(*Writer, *Fields)
+MsgPackFree(*Fields, #True)
+```
+Forcing their format code requires the content as a buffer, e.g. from `MsgPackFinalize`, for `MsgPackWriteFixArray/Array16/...`.
+
+### Iterating over a buffer
+The end of a buffer can't be queried, so either wrap the data in a top-level array/map,
+or subtract each top-level field's `MsgPackGetFieldFullSize` from the buffer's size until it reaches `0`.
+
+### Missing or asymmetric procedures
+* Floats have no implicitly typed setter, use `MsgPackWriteFloat32/64`.
+* Strings have no explicitly typed getters, `MsgPackReadString` reads all str format codes.
+* Fixints have no explicitly typed getter, `MsgPackReadInteger` reads them.
+
+
 ## Remarks
 * Never touch the `MsgPackData` structure unless you **absolutely** have to.
 
@@ -323,3 +409,46 @@ EndIf
 ## Support
 - Both the ASM and C backends
 - x86, x64, arm64
+
+
+## Working on this repository
+
+### Layout
+* `Includes/MessagePack.pbi` - Main file, only includes the others.
+* `Includes/_*.pbi` - One file per family. (Allocators, Literals, Primitives, Strings, ...)
+* `Includes/PB-Endianness/` - Git submodule, don't edit it from here.
+* `UnitTests/` - One folder per family, numbered like the includes' order.
+* `Examples/` - One folder per example, with a `.pb` of the same name.
+* `PerfTests/` - Benchmarks, one folder per workload, each with a `RunPerfTests.ps1`.
+* `SecurityTests/` - Private, git-ignored, leave it alone unless asked.
+
+### Conventions
+* `.pb`/`.pbi` files use CRLF line endings and ASCII only, `Chr()` for anything else.
+* Includes use tabs, examples use 4 spaces.
+* Private procedures and macros are prefixed with `_MsgPack`, public ones with `MsgPack`.
+* Every public procedure is documented above its definition, and in this file.
+* `#Null` pointers raise a `DebuggerError` behind `CompilerIf Not #MsgPack_DisableNullChecks`, invalid data only uses `Debug`.
+
+### Unit tests
+* Run with `RunTests.ps1`, which builds each test without the debugger, so `Debug` & co are compiled out.
+* Each test includes `../_UnitTesting.pbi`, uses its `Assert*` procedures, and ends with `End 1` if `FailedUnitTests` isn't `0`.
+* `*FatalErrors.pb` tests call `DebuggerError` on purpose, and only pass without the debugger.
+* No PureBasic compiler is available in the cloud sandbox, ask the user to run the tests.
+
+### Performance tests
+* Run with the `RunPerfTests.ps1` of each folder, Windows only.
+  * They dot-source `PerfTests/_PerfTesting.ps1`, which builds the folder's `.pb` files without the debugger, with `/OPTIMIZER` on the C backend,
+    runs `PerfPython.py` and `DotNet/` if present, and saves the results in `PerfTests/Results/<Folder>_<Version>_<Architecture>-<Backend>.csv`.
+  * PureBasic 6.41 and 6.21 are configured in `$Compilers`, 6.21 being kept to compare the string handling changes of 6.40.
+* Each implementation times its scenarios with the shared `_PerfTesting.pbi`/`.py`/`.cs`: one warm-up run, then the median of 5.
+* Each program prints `Implementation,Scenario,MedianMs,NsPerOp,Check` lines on stdout, errors go to stderr.
+* `Check` must be identical for a scenario across implementations, the scripts report mismatches.
+* Each folder's workload is described in its `_Workload.pbi`, keep its `PerfPython.py` and `DotNet/Program.cs` in sync with it.
+* Python packages are pinned in `PerfTests/requirements.txt`, MessagePack-CSharp in each `DotNetPerf.csproj`.
+* The results tables are in `PerfTests/readme.md`, the conclusions in the main readme's "Performances" section, keep both in sync with new results.
+* Open performance questions and their leads are in `PerfTests/Investigations.md`, update it when one is looked into.
+
+### Examples
+* Start with a `;- Notes` section, then `;- Example`.
+* Check every result, and use a different `End` code for each failure.
+* Link new examples in the readme's "Examples" section.
