@@ -107,16 +107,16 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteSizedFieldHeader(*MsgPackData.MsgPackDa
 
 	Select SizeFieldByteLength
 		Case 0
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode | DataSize)
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode | DataSize)
 		Case 1
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, DataSize)
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, DataSize)
 		Case 2
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(DataSize))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(DataSize))
 		Case 4
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(DataSize))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(DataSize))
 	EndSelect
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1 + SizeFieldByteLength
 
@@ -181,7 +181,7 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 
 	FormatCode = MsgPackGetFormatCode(*MsgPackData)
 	If MsgPackFormatCodeToDataType(FormatCode) <> ExpectedDataType
-		Debug("Unexpected format code !  (" + RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
+		Debug("Unexpected format code !  (" + RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
 		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 		ProcedureReturn #MsgPack_Error_InvalidFormatCode
 	EndIf
@@ -227,14 +227,14 @@ Procedure.MsgPack_ErrorCode _MsgPackReadSizedFieldHeader(*MsgPackData.MsgPackDat
 		Case 0:
 			; FixExt sizes were already set above.
 			If FormatCode = #MsgPack_FormatCode_FixStr
-				DataSize = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) & %00011111
+				DataSize = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) & %00011111
 			EndIf
 		Case 1:
-			DataSize = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+			DataSize = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 		Case 2:
-			DataSize = EndianSwapU16(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+			DataSize = EndianSwapU16(FastPeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 		Case 4:
-			DataSize = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
+			DataSize = EndianSwapI32(FastPeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
 	EndSelect
 
 	If Not _MsgPackHasSpaceLeft(*MsgPackData, 1 + SizeFieldByteLength + ExtTypeByteLength + DataSize)

@@ -91,9 +91,9 @@ Procedure.MsgPack_ErrorCode _MsgPackExpectRead(*MsgPackData.MsgPackData, FormatC
 		ProcedureReturn #MsgPack_Error_AtOrPastTheEndOfBuffer
 	EndIf
 	
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> FormatCode
+	If FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) <> FormatCode
 		Debug("Unexpected format code !  (" +
-		              RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
+		              RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
 		              " vs "+ RSet(Hex(FormatCode), 2, "0") + ")")
 		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 		ProcedureReturn #MsgPack_Error_InvalidFormatCode
@@ -134,19 +134,19 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteFixedField(*MsgPackData.MsgPackData, Fo
 
 	Select ValueByteLength
 		Case 0
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode | (Value & $FF))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode | (Value & $FF))
 		Case 1
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, Value)
 		Case 2
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(Value))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapU16(Value))
 		Case 4
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI32(Value))
 		Case 8
-			PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
-			PokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
+			FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+			FastPokeQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1, EndianSwapI64(Value))
 	EndSelect
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1 + ValueByteLength
 	_MsgPackRewindOffsetAfterWrite(*MsgPackData, 1 + ValueByteLength)
@@ -168,13 +168,13 @@ Procedure.q _MsgPackReadFixedField(*MsgPackData.MsgPackData, FormatCode.MsgPack_
 
 	Select ValueByteLength
 		Case 1
-			ReturnedValue = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+			ReturnedValue = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 		Case 2
-			ReturnedValue = EndianSwapU16(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+			ReturnedValue = EndianSwapU16(FastPeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 		Case 4
-			ReturnedValue = EndianSwapI32(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
+			ReturnedValue = EndianSwapI32(FastPeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
 		Case 8
-			ReturnedValue = EndianSwapI64(PeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+			ReturnedValue = EndianSwapI64(FastPeekQ(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 	EndSelect
 	_MsgPackMoveOffsetAfterRead(*MsgPackData, 1 + ValueByteLength)
 
@@ -359,7 +359,7 @@ Procedure.q MsgPackReadInteger(*MsgPackData.MsgPackData)
 		Case #MsgPack_FormatCode_FixIntPositive,
 		     #MsgPack_FormatCode_FixIntNegative:
 			; The whole byte is the value, both ranges are valid signed bytes.
-			ReturnedValue = PeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
+			ReturnedValue = FastPeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
 			_MsgPackMoveOffsetAfterRead(*MsgPackData, 1)
 			*MsgPackData\LastError = #MsgPack_Error_Success
 			ProcedureReturn ReturnedValue
@@ -370,7 +370,7 @@ Procedure.q MsgPackReadInteger(*MsgPackData.MsgPackData)
 		Case #MsgPack_FormatCode_UInt32:
 			ProcedureReturn _MsgPackReadFixedField(*MsgPackData, #MsgPack_FormatCode_UInt32, 4)
 		Case #MsgPack_FormatCode_UInt64:
-			If _MsgPackHasSpaceLeft(*MsgPackData, 9) And (PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1) & $80)
+			If _MsgPackHasSpaceLeft(*MsgPackData, 9) And (FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1) & $80)
 				Debug("UInt64 value doesn't fit in a signed quad !")
 				*MsgPackData\LastError = #MsgPack_Error_ValueOverflow
 				ProcedureReturn 0
@@ -386,7 +386,7 @@ Procedure.q MsgPackReadInteger(*MsgPackData.MsgPackData)
 			ProcedureReturn MsgPackReadInt64(*MsgPackData)
 	EndSelect
 
-	Debug("Unexpected format code !  (" + RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
+	Debug("Unexpected format code !  (" + RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
 	*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 	ProcedureReturn 0
 EndProcedure
@@ -397,14 +397,14 @@ EndProcedure
 ; The value's bits are moved and swapped as an integer, since loading a byte-swapped
 ;  float into the FPU can alter its bits. (e.g.: NaN quieting on x87)
 Procedure.MsgPack_ErrorCode MsgPackWriteFloat32(*MsgPackData.MsgPackData, Value.f)
-	ProcedureReturn _MsgPackWriteFixedField(*MsgPackData, #MsgPack_FormatCode_Float32, 4, PeekL(@Value))
+	ProcedureReturn _MsgPackWriteFixedField(*MsgPackData, #MsgPack_FormatCode_Float32, 4, FastPeekL(@Value))
 EndProcedure
 
 
 Procedure.f MsgPackReadFloat32(*MsgPackData.MsgPackData)
 	Protected ReturnedValue.f
 
-	PokeL(@ReturnedValue, _MsgPackReadFixedField(*MsgPackData, #MsgPack_FormatCode_Float32, 4))
+	FastPokeL(@ReturnedValue, _MsgPackReadFixedField(*MsgPackData, #MsgPack_FormatCode_Float32, 4))
 
 	ProcedureReturn ReturnedValue
 EndProcedure
@@ -415,14 +415,14 @@ EndProcedure
 ; The value's bits are moved and swapped as an integer, since loading a byte-swapped
 ;  float into the FPU can alter its bits. (e.g.: NaN quieting on x87)
 Procedure.MsgPack_ErrorCode MsgPackWriteFloat64(*MsgPackData.MsgPackData, Value.d)
-	ProcedureReturn _MsgPackWriteFixedField(*MsgPackData, #MsgPack_FormatCode_Float64, 8, PeekQ(@Value))
+	ProcedureReturn _MsgPackWriteFixedField(*MsgPackData, #MsgPack_FormatCode_Float64, 8, FastPeekQ(@Value))
 EndProcedure
 
 
 Procedure.d MsgPackReadFloat64(*MsgPackData.MsgPackData)
 	Protected ReturnedValue.d
 
-	PokeQ(@ReturnedValue, _MsgPackReadFixedField(*MsgPackData, #MsgPack_FormatCode_Float64, 8))
+	FastPokeQ(@ReturnedValue, _MsgPackReadFixedField(*MsgPackData, #MsgPack_FormatCode_Float64, 8))
 
 	ProcedureReturn ReturnedValue
 EndProcedure
@@ -454,7 +454,7 @@ Procedure.d MsgPackReadFloat(*MsgPackData.MsgPackData)
 			ProcedureReturn MsgPackReadFloat64(*MsgPackData)
 	EndSelect
 
-	Debug("Unexpected format code !  (" + RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
+	Debug("Unexpected format code !  (" + RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
 	*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 	ProcedureReturn 0
 EndProcedure

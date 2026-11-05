@@ -417,6 +417,7 @@ or subtract each top-level field's `MsgPackGetFieldFullSize` from the buffer's s
 * `Includes/MessagePack.pbi` - Main file, only includes the others.
 * `Includes/_*.pbi` - One file per family. (Allocators, Literals, Primitives, Strings, ...)
 * `Includes/PB-Endianness/` - Git submodule, don't edit it from here.
+* `Includes/PB-FastNumericPeekPoke/` - Git submodule, don't edit it from here. Use `FastPeekX()`/`FastPokeX()` instead of the numeric `PeekX()`/`PokeX()`.
 * `UnitTests/` - One folder per family, numbered like the includes' order.
 * `Examples/` - One folder per example, with a `.pb` of the same name.
 * `PerfTests/` - Benchmarks, one folder per workload, each with a `RunPerfTests.ps1`.

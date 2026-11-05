@@ -96,7 +96,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 			ProcedureReturn ErrorCode
 		EndIf
 
-		PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
+		FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, FormatCode)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
 	Else
 		ErrorCode = _MsgPackWriteSizedFieldHeader(*MsgPackData, FormatCode, SizeFieldByteLength, DataSize, 1, *Data)
@@ -105,7 +105,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteExtField(*MsgPackData.MsgPackData, Form
 		EndIf
 	EndIf
 
-	PokeB(*MsgPackData\Buffer + *MsgPackData\BufferOffset, ExtType)
+	FastPokeB(*MsgPackData\Buffer + *MsgPackData\BufferOffset, ExtType)
 	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
 
 	If DataSize > 0
@@ -133,7 +133,7 @@ Procedure.b MsgPackGetExtensionType(*MsgPackData.MsgPackData)
 		ProcedureReturn 0
 	EndIf
 
-	ProcedureReturn PeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset + HeaderSize - 1)
+	ProcedureReturn FastPeekB(*MsgPackData\Buffer + *MsgPackData\BufferOffset + HeaderSize - 1)
 EndProcedure
 
 

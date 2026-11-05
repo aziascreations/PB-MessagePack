@@ -46,7 +46,7 @@ XIncludeFile "./_Binary.pbi"
 ;  `XXX` is the format code bits and `YYYYY` the value's dynamic size.
 ; Applies to: FixStr, FixArray, FixMap
 ;     Remark: Doesn't apply to FixInt variants since those have their own function for extracting the value.
-Macro _MsgPackGetFieldDynamicSize_Within(MsgPackData, Mask) : (PeekA(MsgPackData\Buffer + MsgPackData\BufferOffset) & Mask) : EndMacro
+Macro _MsgPackGetFieldDynamicSize_Within(MsgPackData, Mask) : (FastPeekA(MsgPackData\Buffer + MsgPackData\BufferOffset) & Mask) : EndMacro
 
 ; Returns the field's dynamic size based on the byte right after the format code.
 ; Applies to: Str8, Bin8, Ext8
@@ -57,7 +57,7 @@ Procedure.q _MsgPackGetFieldDynamicSize_1After(*MsgPackData.MsgPackData)
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
 
-    ProcedureReturn PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
+    ProcedureReturn FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)
 EndProcedure
 
 ; Returns the field's dynamic size based on the 2 bytes right after the format code.
@@ -69,7 +69,7 @@ Procedure.q _MsgPackGetFieldDynamicSize_2After(*MsgPackData.MsgPackData)
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
 
-    ProcedureReturn EndianSwapU(PeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
+    ProcedureReturn EndianSwapU(FastPeekU(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1))
 EndProcedure
 
 ; Returns the field's dynamic size based on the 4 bytes right after the format code.
@@ -81,7 +81,7 @@ Procedure.q _MsgPackGetFieldDynamicSize_4After(*MsgPackData.MsgPackData)
         ProcedureReturn #MsgPack_InvalidSize
     EndIf
 
-    ProcedureReturn EndianSwapL(PeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
+    ProcedureReturn EndianSwapL(FastPeekL(*MsgPackData\Buffer + *MsgPackData\BufferOffset + 1)) & $FFFFFFFF
 EndProcedure
 
 ; Returns a given format code's spacing info based on itself and the data in the given MsgPack buffer.
@@ -110,20 +110,20 @@ Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType
     Select ExaminedDataType
         Case #MsgPack_FormatCode_FixStr:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00011111))
+                FastPokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00011111))
             EndIf
             If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, 1)
+                FastPokeB(*ValueStartOffsetB, 1)
             EndIf
             ProcedureReturn #True
             
         Case #MsgPack_FormatCode_FixArray,
              #MsgPack_FormatCode_FixMap:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00001111))
+                FastPokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_Within(*MsgPackData, %00001111))
             EndIf
             If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, 1)
+                FastPokeB(*ValueStartOffsetB, 1)
             EndIf
             ProcedureReturn #True
             
@@ -132,10 +132,10 @@ Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType
              #MsgPack_FormatCode_Str8,
              #MsgPack_FormatCode_Bin8:
         	If *VariableSizeQ <> #Null
-        		PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_1After(*MsgPackData))
+        		FastPokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_1After(*MsgPackData))
         	EndIf
         	If *ValueStartOffsetB <> #Null
-        		PokeB(*ValueStartOffsetB, 2)
+        		FastPokeB(*ValueStartOffsetB, 2)
         	EndIf
         	ProcedureReturn #True
         	
@@ -146,10 +146,10 @@ Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType
              #MsgPack_FormatCode_Array16,
              #MsgPack_FormatCode_Map16:
         	If *VariableSizeQ <> #Null
-        		PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_2After(*MsgPackData))    
+        		FastPokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_2After(*MsgPackData))    
         	EndIf
         	If *ValueStartOffsetB <> #Null
-        		PokeB(*ValueStartOffsetB, 3)
+        		FastPokeB(*ValueStartOffsetB, 3)
         	EndIf
         	ProcedureReturn #True
         	
@@ -160,19 +160,19 @@ Procedure _MsgPackGetFieldSpacingInfo(*MsgPackData.MsgPackData, ExaminedDataType
              #MsgPack_FormatCode_Array32,
              #MsgPack_FormatCode_Map32:
         	If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_4After(*MsgPackData))    
+                FastPokeQ(*VariableSizeQ, _MsgPackGetFieldDynamicSize_4After(*MsgPackData))    
             EndIf
             If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, 5)
+                FastPokeB(*ValueStartOffsetB, 5)
             EndIf
             ProcedureReturn #True
             
         Default:
             If *VariableSizeQ <> #Null
-                PokeQ(*VariableSizeQ, #MsgPack_InvalidSize)    
+                FastPokeQ(*VariableSizeQ, #MsgPack_InvalidSize)    
             EndIf
             If *ValueStartOffsetB <> #Null
-                PokeB(*ValueStartOffsetB, #MsgPack_InvalidSize)
+                FastPokeB(*ValueStartOffsetB, #MsgPack_InvalidSize)
             EndIf
             ProcedureReturn #False
     EndSelect
@@ -269,7 +269,7 @@ Procedure.MsgPack_ErrorCode _MsgPackGetFieldLayout(*MsgPackData.MsgPackData, *He
 			*ChildCount\q = ChildCount
 
 		Default:
-			Debug("Invalid format code !  (" + RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
+			Debug("Invalid format code !  (" + RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
 			*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 			ProcedureReturn #MsgPack_Error_InvalidFormatCode
 	EndSelect
@@ -341,7 +341,7 @@ Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCo
 		EndIf
 
 		; Arrays and maps are at depth `Level + 1` from the structure's content.
-		FormatByte = PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
+		FormatByte = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
 		If _MsgPackIsContainerFormatByte(FormatByte) And *MsgPackData\IteratorDepth + Level + 1 > #MsgPack_MaxDepth
 			Debug("Arrays and maps are nested deeper than " + Str(#MsgPack_MaxDepth) + " levels !")
 			*MsgPackData\LastError = #MsgPack_Error_MaxDepthExceeded
@@ -424,7 +424,7 @@ Procedure.q MsgPackGetEntryCount(*MsgPackData.MsgPackData)
 			ProcedureReturn ChildCount / 2
 	EndSelect
 
-	Debug("Unexpected format code !  (" + RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
+	Debug("Unexpected format code !  (" + RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") + ")")
 	*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 	ProcedureReturn #MsgPack_InvalidSize
 EndProcedure
@@ -486,7 +486,7 @@ Procedure.i MsgPackExamine(*MsgPackData.MsgPackData, ExaminationOptions.MsgPack_
 	DataType = MsgPackFormatCodeToDataType(MsgPackGetFormatCode(*MsgPackData))
 	If DataType <> #MsgPack_DataTypes_Array And DataType <> #MsgPack_DataTypes_Map
 		Debug("Attempted to examine format code 0x" +
-		      RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
+		      RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
 		      " as if it was an array or map !")
 		*MsgPackData\LastError = #MsgPack_Error_InvalidFormatCode
 		ProcedureReturn #Null

@@ -34,6 +34,12 @@ CompilerIf Not Defined(_NibblePoker_Endianness_WasIncluded, #PB_Constant) And No
 	XIncludeFile "./PB-Endianness/Includes/Endianness.pbi"
 CompilerEndIf
 
+; Skipped if "FastNumericPeekPoke.pbi" was already included from another path, by the program or another include.
+; Its procedures are only used on the C backend with "/OPTIMIZER", they alias the built-ins otherwise.
+CompilerIf Not Defined(_NibblePoker_FastNumericPeekPoke_WasIncluded, #PB_Constant)
+	XIncludeFile "./PB-FastNumericPeekPoke/Includes/FastNumericPeekPoke.pbi"
+CompilerEndIf
+
 
 
 ; ------------------------------------------------------------------------------

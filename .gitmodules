@@ -1,3 +1,6 @@
 [submodule "Includes/PB-Endianness"]
 	path = Includes/PB-Endianness
 	url = https://github.com/aziascreations/PB-Endianness.git
+[submodule "Includes/PB-FastNumericPeekPoke"]
+	path = Includes/PB-FastNumericPeekPoke
+	url = https://github.com/aziascreations/PB-FastNumericPeekPoke.git

@@ -72,13 +72,13 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	
 	; We don't check if we're 1 byte off the end since the previous check implies it.
 
-	If PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_False
+	If FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_False
 		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
 	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
 		EndIf
 		
 		ProcedureReturn #False
-    ElseIf PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_True
+    ElseIf FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_True
 		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
 	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
 	    EndIf
@@ -86,7 +86,7 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 		ProcedureReturn #True
 	Else
 		Debug("The format code isn't the one for a boolean !  (" +
-		      RSet(Hex(PeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
+		      RSet(Hex(FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)), 2, "0") +
 		      " vs "+ RSet(Hex(#MsgPack_FormatCode_False), 2, "0") +
 		      "/"+ RSet(Hex(#MsgPack_FormatCode_True), 2, "0") + ")")
 
@@ -128,7 +128,7 @@ Procedure.MsgPack_ErrorCode _MsgPackWriteLiteral(*MsgPackData.MsgPackData, Liter
 		EndIf
 	EndIf
 	
-	PokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, LiteralFormatCode)
+	FastPokeA(*MsgPackData\Buffer + *MsgPackData\BufferOffset, LiteralFormatCode)
 
 	If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterWrite)
 		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
