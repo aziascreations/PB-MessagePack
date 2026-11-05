@@ -290,14 +290,73 @@ Macro _MsgPackIsContainerFormatByte(Byte)
 	((Byte & $E0) = $80 Or (Byte >= $DC And Byte <= $DF))
 EndMacro
 
-; Fields left to skip at each nesting level, the top level being `0`.
+; Fields left to skip at each nesting level, the skipped array or map's own level being `0`.
 Structure _MsgPackSkipLevels
 	FieldsLeft.q[#MsgPack_MaxDepth + 1]
 EndStructure
 
-; Moves the offset past the next `FieldCount` fields, the ones contained in arrays and maps included.
+; Moves the offset past the array or map at the current offset, and all of its contained fields.
 ; Done iteratively so deeply nested arrays and maps can't overflow the stack.
 ; Arrays and maps nested deeper than `#MsgPack_MaxDepth`, counting the ones containing the structure, are rejected.
+; `FieldsAfter` is the number of fields the caller still has to skip after this one,
+;  so the "more fields left than bytes left" check below sees the caller's fields too.
+; Only called by `_MsgPackSkipFields()`, which restores the offset on errors.
+;     Remark: `Levels` is zero-filled by PureBasic on every call, 1 KB by default,
+;             so simple fields are skipped by `_MsgPackSkipFields()` without calling this.
+; Sets the structure's error code on errors and returns it.
+Procedure.MsgPack_ErrorCode _MsgPackSkipContainer(*MsgPackData.MsgPackData, FieldsAfter.q)
+	Protected HeaderSize.i
+	Protected DataSize.q
+	Protected ChildCount.q
+	Protected Level.i = 0
+	Protected Levels._MsgPackSkipLevels
+	Protected FormatByte.a
+	Protected FieldCount.q = 1
+	Protected ErrorCode.MsgPack_ErrorCode = #MsgPack_Error_Success
+
+	; `FieldCount` is the total left to skip in the array or map, itself and all levels included.
+	Levels\FieldsLeft[0] = FieldCount
+
+	While FieldCount > 0
+		; Leaving the arrays and maps whose content was fully skipped.
+		While Levels\FieldsLeft[Level] = 0
+			Level = Level - 1
+		Wend
+
+		ErrorCode = _MsgPackGetFieldLayout(*MsgPackData, @HeaderSize, @DataSize, @ChildCount)
+		If ErrorCode <> #MsgPack_Error_Success
+			ProcedureReturn ErrorCode
+		EndIf
+
+		; Arrays and maps are at depth `Level + 1` from the structure's content.
+		FormatByte = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
+		If _MsgPackIsContainerFormatByte(FormatByte) And *MsgPackData\IteratorDepth + Level + 1 > #MsgPack_MaxDepth
+			Debug("Arrays and maps are nested deeper than " + Str(#MsgPack_MaxDepth) + " levels !")
+			*MsgPackData\LastError = #MsgPack_Error_MaxDepthExceeded
+			ProcedureReturn #MsgPack_Error_MaxDepthExceeded
+		EndIf
+
+		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
+		FieldCount = FieldCount - 1 + ChildCount
+		Levels\FieldsLeft[Level] = Levels\FieldsLeft[Level] - 1
+		If ChildCount > 0
+			Level = Level + 1
+			Levels\FieldsLeft[Level] = ChildCount
+		EndIf
+
+		; Each field takes at least 1 byte, which rejects bogus array and map sizes early.
+		If FieldCount + FieldsAfter > *MsgPackData\BufferSize - *MsgPackData\BufferOffset
+			Debug("End of buffer reached, " + Str(FieldCount + FieldsAfter) + " fields are left to skip !")
+			*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
+			ProcedureReturn #MsgPack_Error_BufferTooSmall
+		EndIf
+	Wend
+
+	ProcedureReturn #MsgPack_Error_Success
+EndProcedure
+
+; Moves the offset past the next `FieldCount` fields, the ones contained in arrays and maps included.
+; Simple fields are skipped here, each array or map is handed to `_MsgPackSkipContainer()`.
 ; The offset is left untouched on errors.
 ; Sets the structure's error code and returns it.
 Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCount.q)
@@ -305,9 +364,8 @@ Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCo
 	Protected HeaderSize.i
 	Protected DataSize.q
 	Protected ChildCount.q
-	Protected Level.i = 0
-	Protected Levels._MsgPackSkipLevels
 	Protected FormatByte.a
+	Protected IsContainer.b
 	Protected ErrorCode.MsgPack_ErrorCode = #MsgPack_Error_Success
 
 	CompilerIf Not #MsgPack_DisableNullChecks
@@ -326,38 +384,29 @@ Procedure.MsgPack_ErrorCode _MsgPackSkipFields(*MsgPackData.MsgPackData, FieldCo
 		ProcedureReturn #MsgPack_Error_BufferTooSmall
 	EndIf
 
-	; `FieldCount` is the total left to skip, all levels included.
-	Levels\FieldsLeft[0] = FieldCount
-
 	While FieldCount > 0
-		; Leaving the arrays and maps whose content was fully skipped.
-		While Levels\FieldsLeft[Level] = 0
-			Level = Level - 1
-		Wend
+		; At the end of the buffer, `_MsgPackGetFieldLayout()` below reports it.
+		IsContainer = #False
+		If Not _MsgPackIsAtTheEnd(*MsgPackData)
+			FormatByte = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
+			IsContainer = Bool(_MsgPackIsContainerFormatByte(FormatByte))
+		EndIf
 
-		ErrorCode = _MsgPackGetFieldLayout(*MsgPackData, @HeaderSize, @DataSize, @ChildCount)
+		If IsContainer
+			ErrorCode = _MsgPackSkipContainer(*MsgPackData, FieldCount - 1)
+		Else
+			ErrorCode = _MsgPackGetFieldLayout(*MsgPackData, @HeaderSize, @DataSize, @ChildCount)
+			If ErrorCode = #MsgPack_Error_Success
+				*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
+			EndIf
+		EndIf
 		If ErrorCode <> #MsgPack_Error_Success
 			Break
 		EndIf
 
-		; Arrays and maps are at depth `Level + 1` from the structure's content.
-		FormatByte = FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset)
-		If _MsgPackIsContainerFormatByte(FormatByte) And *MsgPackData\IteratorDepth + Level + 1 > #MsgPack_MaxDepth
-			Debug("Arrays and maps are nested deeper than " + Str(#MsgPack_MaxDepth) + " levels !")
-			*MsgPackData\LastError = #MsgPack_Error_MaxDepthExceeded
-			ErrorCode = #MsgPack_Error_MaxDepthExceeded
-			Break
-		EndIf
+		FieldCount = FieldCount - 1
 
-		*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + HeaderSize + DataSize
-		FieldCount = FieldCount - 1 + ChildCount
-		Levels\FieldsLeft[Level] = Levels\FieldsLeft[Level] - 1
-		If ChildCount > 0
-			Level = Level + 1
-			Levels\FieldsLeft[Level] = ChildCount
-		EndIf
-
-		; Each field takes at least 1 byte, which rejects bogus array and map sizes early.
+		; Each field takes at least 1 byte.
 		If FieldCount > *MsgPackData\BufferSize - *MsgPackData\BufferOffset
 			Debug("End of buffer reached, " + Str(FieldCount) + " fields are left to skip !")
 			*MsgPackData\LastError = #MsgPack_Error_BufferTooSmall
