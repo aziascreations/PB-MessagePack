@@ -116,7 +116,6 @@ Procedure.s MsgPackReadString(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)
 	Protected HeaderSize.i
 	Protected StringSize.q
 	Protected *StringStart
-	Protected ReturnedValue.s = ""
 
 	If _MsgPackReadSizedFieldHeader(*MsgPackData, #MsgPack_DataTypes_String, @HeaderSize, @StringSize) <> #MsgPack_Error_Success
 		ProcedureReturn ""
@@ -136,20 +135,22 @@ Procedure.s MsgPackReadString(*MsgPackData.MsgPackData, Encoding.i = #PB_UTF8)
 
 	*StringStart = *MsgPackData\Buffer + *MsgPackData\BufferOffset + HeaderSize
 
+	; Moved before decoding, `PeekS()` can't fail.
+	_MsgPackMoveOffsetAfterRead(*MsgPackData, HeaderSize + StringSize)
+
+	; Returned directly, assigning `PeekS()` to a local first copies the string once more.
 	If StringSize > 0
 		Select Encoding
 			Case #PB_UTF8
-				ReturnedValue = PeekS(*StringStart, StringSize, #PB_UTF8 | #PB_ByteLength)
+				ProcedureReturn PeekS(*StringStart, StringSize, #PB_UTF8 | #PB_ByteLength)
 			Case #PB_Ascii
-				ReturnedValue = PeekS(*StringStart, StringSize, #PB_Ascii)
+				ProcedureReturn PeekS(*StringStart, StringSize, #PB_Ascii)
 			Case #PB_Unicode
-				ReturnedValue = PeekS(*StringStart, StringSize / 2, #PB_Unicode)
+				ProcedureReturn PeekS(*StringStart, StringSize / 2, #PB_Unicode)
 		EndSelect
 	EndIf
 
-	_MsgPackMoveOffsetAfterRead(*MsgPackData, HeaderSize + StringSize)
-
-	ProcedureReturn ReturnedValue
+	ProcedureReturn ""
 EndProcedure
 
 

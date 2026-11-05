@@ -73,16 +73,10 @@ Procedure.b MsgPackReadBoolean(*MsgPackData.MsgPackData)
 	; We don't check if we're 1 byte off the end since the previous check implies it.
 
 	If FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_False
-		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
-	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
-		EndIf
-		
+		_MsgPackMoveOffsetAfterRead(*MsgPackData, 1)
 		ProcedureReturn #False
-    ElseIf FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_True
-		If _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
-	    	*MsgPackData\BufferOffset = *MsgPackData\BufferOffset + 1
-	    EndIf
-	    
+	ElseIf FastPeekA(*MsgPackData\Buffer + *MsgPackData\BufferOffset) = #MsgPack_FormatCode_True
+		_MsgPackMoveOffsetAfterRead(*MsgPackData, 1)
 		ProcedureReturn #True
 	Else
 		Debug("The format code isn't the one for a boolean !  (" +

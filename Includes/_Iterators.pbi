@@ -485,6 +485,8 @@ EndProcedure
 ; Map keys and values count as separate fields.
 ; Returns `#MsgPack_Error_Success` on success, something else otherwise, in which case the offset isn't moved.
 Procedure.MsgPack_ErrorCode MsgPackSkip(*MsgPackData.MsgPackData, FieldCount.q = 1)
+	Protected ErrorCode.MsgPack_ErrorCode
+
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *MsgPackData
 			DebuggerError("A #Null MsgPackData pointer was passed !")
@@ -498,7 +500,12 @@ Procedure.MsgPack_ErrorCode MsgPackSkip(*MsgPackData.MsgPackData, FieldCount.q =
 		ProcedureReturn #MsgPack_Error_InvalidValue
 	EndIf
 
-	ProcedureReturn _MsgPackSkipFields(*MsgPackData, FieldCount)
+	ErrorCode = _MsgPackSkipFields(*MsgPackData, FieldCount)
+	If ErrorCode = #MsgPack_Error_Success
+		*MsgPackData\IteratorFieldsRead = *MsgPackData\IteratorFieldsRead + FieldCount
+	EndIf
+
+	ProcedureReturn ErrorCode
 EndProcedure
 
 
@@ -585,6 +592,8 @@ Procedure.i MsgPackExamine(*MsgPackData.MsgPackData, ExaminationOptions.MsgPack_
 
 	If IsUnsafe Or Not _MsgPackHasFlag(*MsgPackData, #MsgPack_DataFlags_MoveOffsetAfterRead)
 		*MsgPackData\BufferOffset = StartOffset
+	Else
+		*MsgPackData\IteratorFieldsRead = *MsgPackData\IteratorFieldsRead + 1
 	EndIf
 
 	*MsgPackData\LastError = #MsgPack_Error_Success
@@ -599,6 +608,7 @@ EndProcedure
 ; OnError: Returns `#False` and sets the `MsgPackData\LastError` field.
 Procedure.b MsgPackNextEntry(*Iterator.MsgPackData)
 	Protected FieldsPerEntry.q = 1
+	Protected FieldsToSkip.q
 
 	CompilerIf Not #MsgPack_DisableNullChecks
 		If Not *Iterator
@@ -617,20 +627,34 @@ Procedure.b MsgPackNextEntry(*Iterator.MsgPackData)
 		; First call, the first entry is at the very start of the view.
 		*Iterator\IteratorEntryOffset = 0
 	ElseIf *Iterator\IteratorFieldsLeft > 0
-		; Skipping from the entry's start, regardless of what was read from it.
 		If _MsgPackHasFlag(*Iterator, #MsgPack_DataFlags_CanProvideKeys)
 			FieldsPerEntry = 2
 		EndIf
 
-		*Iterator\BufferOffset = *Iterator\IteratorEntryOffset
-		If _MsgPackSkipFields(*Iterator, FieldsPerEntry) <> #MsgPack_Error_Success
-			ProcedureReturn #False
+		; Only the fields that weren't read are skipped, from where the reads left the offset.
+		; Reading past the entry falls back to skipping all of it from its start.
+		If *Iterator\IteratorFieldsRead > FieldsPerEntry
+			*Iterator\BufferOffset = *Iterator\IteratorEntryOffset
+			FieldsToSkip = FieldsPerEntry
+		Else
+			FieldsToSkip = FieldsPerEntry - *Iterator\IteratorFieldsRead
+		EndIf
+
+		If FieldsToSkip > 0
+			If _MsgPackSkipFields(*Iterator, FieldsToSkip) <> #MsgPack_Error_Success
+				; Failing again from the entry's start, so the error doesn't depend on what was read,
+				;  the "more fields left than bytes left" check may catch it earlier from there.
+				*Iterator\BufferOffset = *Iterator\IteratorEntryOffset
+				_MsgPackSkipFields(*Iterator, FieldsPerEntry)
+				ProcedureReturn #False
+			EndIf
 		EndIf
 		*Iterator\IteratorEntryOffset = *Iterator\BufferOffset
 		*Iterator\IteratorFieldsLeft = *Iterator\IteratorFieldsLeft - FieldsPerEntry
 	EndIf
 
 	*Iterator\BufferOffset = *Iterator\IteratorEntryOffset
+	*Iterator\IteratorFieldsRead = 0
 	*Iterator\LastError = #MsgPack_Error_Success
 
 	If *Iterator\IteratorFieldsLeft <= 0

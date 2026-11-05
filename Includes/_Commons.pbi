@@ -275,6 +275,10 @@ Structure MsgPackData
 	; Number of fields left to iterate on, map keys and values included, only used by views.
 	IteratorFieldsLeft.q
 
+	; Number of fields the offset was moved past by reads, skips and examinations since the current entry,
+	;  so `MsgPackNextEntry()` only skips the ones that weren't read. Only used by views.
+	IteratorFieldsRead.q
+
 	; Number of arrays and maps containing the data, `0` for regular structures, `1` for views over a top-level one.
 	; Counted against `#MsgPack_MaxDepth`.
 	IteratorDepth.i
@@ -313,10 +317,12 @@ Macro _MsgPackOverlapsBuffer(MsgPackWrapper, Pointer, Size)
 	(Pointer <> #Null And (Size) > 0 And Pointer < MsgPackWrapper\Buffer + MsgPackWrapper\BufferSize And Pointer + (Size) > MsgPackWrapper\Buffer)
 EndMacro
 
-; Moves the offset past a field of `Size` bytes that was fully read, if the flags allow it.
+; Moves the offset past a single field of `Size` bytes that was fully read, if the flags allow it.
+; Every read moving the offset must use it, `MsgPackNextEntry()` relies on `IteratorFieldsRead`.
 Macro _MsgPackMoveOffsetAfterRead(MsgPackWrapper, Size)
 	If _MsgPackHasFlag(MsgPackWrapper, #MsgPack_DataFlags_MoveOffsetAfterRead)
 		MsgPackWrapper\BufferOffset = MsgPackWrapper\BufferOffset + (Size)
+		MsgPackWrapper\IteratorFieldsRead = MsgPackWrapper\IteratorFieldsRead + 1
 	EndIf
 EndMacro
 
